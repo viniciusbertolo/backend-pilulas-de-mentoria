@@ -12,10 +12,10 @@ const saltRounds = 10;
 }
 
 const db = mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "vamb1808",
-  database: "banco",
+  host: "us-cdbr-east-06.cleardb.net",
+  user: "bca979a5fdd0a6",
+  password: "dee87e51",
+  database: "heroku_796c03910f34e5f",
 });
 
 app.use(express.json());
