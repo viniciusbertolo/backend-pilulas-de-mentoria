@@ -21,6 +21,10 @@ const db = mysql.createPool({
 app.use(express.json());
 app.use(cors());
 
+app.get("/", (req, res) => {
+  res.send("Bem vindos ao backend do pilulas de mentoria");
+});
+
 app.post("/register", (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
