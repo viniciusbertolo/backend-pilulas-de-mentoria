@@ -28,6 +28,7 @@ app.get("/", (req, res) => {
 app.post("/register", (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
+  const empresa = req.body.empresa;
   const profissao = req.body.profissao;
   const nome = req.body.nome;
   const phone = req.body.phone;
@@ -38,7 +39,6 @@ app.post("/register", (req, res) => {
   const cidade = req.body.cidade;
   const estado = req.body.estado;
   const data_nascimento = req.body.data_nascimento;
-  const empresa = req.body.empresa;
 
   db.query("SELECT * FROM usuarios WHERE email = ?", [email], (err, result) => {
     if (err) {
