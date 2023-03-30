@@ -28,6 +28,7 @@ app.get("/", (req, res) => {
 app.post("/register", (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
+  const empresa = req.body.empresa;
   const profissao = req.body.profissao;
   const nome = req.body.nome;
   const phone = req.body.phone;
@@ -46,7 +47,7 @@ app.post("/register", (req, res) => {
     if (result.length == 0) {
       bcrypt.hash(password, saltRounds, (err, hash) => {
         db.query(
-          "INSERT INTO usuarios (email, password, profissao, nome, phone, cep, logradouro, numero, bairro, cidade, estado, data_nascimento) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO usuarios (email, password, profissao, nome, phone, cep, logradouro, numero, bairro, cidade, estado, data_nascimento,empresa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
           [
             email,
             hash,
@@ -60,6 +61,7 @@ app.post("/register", (req, res) => {
             cidade,
             estado,
             data_nascimento,
+            empresa
           ],
           (err, response) => {
             if (err) {
