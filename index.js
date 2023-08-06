@@ -11,11 +11,18 @@ const saltRounds = 10;
   /*Conexão Com o banco de dados */
 }
 
+// const db = mysql.createPool({
+//   host: "us-cdbr-east-06.cleardb.net",
+//   user: "bca979a5fdd0a6",
+//   password: "dee87e51",
+//   database: "heroku_796c03910f34e5f",
+// });
+
 const db = mysql.createPool({
-  host: "us-cdbr-east-06.cleardb.net",
-  user: "bca979a5fdd0a6",
-  password: "dee87e51",
-  database: "heroku_796c03910f34e5f",
+  host: "localhost",
+  user: "root",
+  password: "vamb1808",
+  database: "pilulasmentoria",
 });
 
 app.use(express.json());
@@ -78,6 +85,25 @@ app.post("/register", (req, res) => {
   });
 });
 
+
+app.put("/update-senha/:email/:password", (req, res) => {
+  const email = req.params.email;
+  const password =req.params.password;
+
+
+    db.query(
+      "UPDATE usuarios SET password = ? WHERE email = ?",
+      [password, email],
+      (err, result) => {
+        if (err) console.log(err);
+        else res.send(result);
+      }
+      );
+    });
+
+
+
+
 {
   /*Verificação de login*/
 }
@@ -128,6 +154,18 @@ app.get("/fases/:id", (req, res) => {
   );
 });
 
+app.get("/detalhes-usuario/:email", (req, res) => {
+  const email = req.params.email;
+  db.query(
+    "SELECT *  FROM usuarios where email = ?",
+    [email],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
 app.get("/videos/:id/:nroPilula", (req, res) => {
   const id = req.params.id;
   const nroPilula = req.params.nroPilula;
@@ -166,12 +204,33 @@ app.get("/questao/:id/:nroPilula", (req, res) => {
   );
 });
 
+app.get("/usuarios", (req, res) => {
+  db.query(
+    "SELECT * FROM usuarios",
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
 app.get("/caminho-concluido/:email/:idCurso", (req, res) => {
   const email = req.params.email;
   const idCurso = req.params.idCurso;
   db.query(
     "SELECT * FROM conclui_etapa where emailUsuario = ? and ID_usuario = ?",
     [email, idCurso],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
+app.get("/caminho-concluido/:idCurso", (req, res) => {
+  const idCurso = req.params.idCurso;
+  db.query(
+    "SELECT * FROM conclui_etapa where ID_usuario = ?",
+    [idCurso],
     (err, result) => {
       if (err) console.log(err);
       else res.send(result);
@@ -223,6 +282,6 @@ app.put("/pergunta-acertada/:email/:idCurso/:nroFase/:nroFaseAnterior", (req, re
 });
 
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log("rodando na porta 3000");
+app.listen(process.env.PORT || 3001, () => {
+  console.log("rodando na porta 3001");
 });
