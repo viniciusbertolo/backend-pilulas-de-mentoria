@@ -11,19 +11,19 @@ const saltRounds = 10;
   /*Conexão Com o banco de dados */
 }
 
-// const db = mysql.createPool({
-//   host: "us-cdbr-east-06.cleardb.net",
-//   user: "bca979a5fdd0a6",
-//   password: "dee87e51",
-//   database: "heroku_796c03910f34e5f",
-// });
-
 const db = mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "vamb1808",
-  database: "pilulasmentoria",
+  host: "us-cdbr-east-06.cleardb.net",
+  user: "bca979a5fdd0a6",
+  password: "dee87e51",
+  database: "heroku_796c03910f34e5f",
 });
+
+// const db = mysql.createPool({
+//   host: "localhost",
+//   user: "root",
+//   password: "vamb1808",
+//   database: "pilulasmentoria",
+// });
 
 app.use(express.json());
 app.use(cors());
