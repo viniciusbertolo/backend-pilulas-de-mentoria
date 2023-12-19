@@ -282,9 +282,9 @@ app.put("/pergunta-acertada/:email/:idCurso/:nroFase/:nroFaseAnterior", (req, re
 });
 
 app.post("/upload-curso", (req, res) => {
-  const nome = req.params.nome;
-  const descricao = req.params.descricao;
-  const urlVideoPreview = req.params.urlVideoPreview;
+  const nome = req.body.nome;
+  const descricao = req.body.descricao;
+  const urlVideoPreview = req.body.urlVideoPreview;
 
 
   db.query(
@@ -299,13 +299,13 @@ app.post("/upload-curso", (req, res) => {
 
 
 app.post("/upload-fase", (req, res) => {
-  const numero = req.params.numero;
-  const idCurso = req.params.idCurso;
-  const nome = req.params.nome;
-  const descricao = req.params.descricao;
-  const url = req.params.url;
-  const pergunta = req.params.pergunta;
-  const material = req.params.material;
+  const numero = req.body.numero;
+  const idCurso = req.body.idCurso;
+  const nome = req.body.nome;
+  const descricao = req.body.descricao;
+  const url = req.body.url;
+  const pergunta = req.body.pergunta;
+  const material = req.body.material;
 
 
   db.query(
@@ -320,13 +320,13 @@ app.post("/upload-fase", (req, res) => {
 
 
 app.post("/upload-respostas", (req, res) => {
-  const numeroFase = req.params.numeroFase;
-  const idCurso = req.params.idCurso;
-  const alternativa1 = req.params.alternativa1;
-  const alternativa2 = req.params.alternativa2;
-  const alternativa3 = req.params.alternativa3;
-  const alternativa4 = req.params.alternativa4;
-  const correta = req.params.correta;
+  const numeroFase = req.body.numeroFase;
+  const idCurso = req.body.idCurso;
+  const alternativa1 = req.body.alternativa1;
+  const alternativa2 = req.body.alternativa2;
+  const alternativa3 = req.body.alternativa3;
+  const alternativa4 = req.body.alternativa4;
+  const correta = req.body.correta;
 
   db.query(
     "INSERT INTO fases (NRO_FASE, ID_cursoAtual, alternativa1, alternativa2, alternativa3, alternativa4, correta) values (?,?,?,?,?,?,?)",
