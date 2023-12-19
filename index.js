@@ -88,18 +88,18 @@ app.post("/register", (req, res) => {
 
 app.put("/update-senha/:email/:password", (req, res) => {
   const email = req.params.email;
-  const password =req.params.password;
+  const password = req.params.password;
 
 
-    db.query(
-      "UPDATE usuarios SET password = ? WHERE email = ?",
-      [password, email],
-      (err, result) => {
-        if (err) console.log(err);
-        else res.send(result);
-      }
-      );
-    });
+  db.query(
+    "UPDATE usuarios SET password = ? WHERE email = ?",
+    [password, email],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
 
 
 
@@ -270,16 +270,77 @@ app.put("/pergunta-acertada/:email/:idCurso/:nroFase/:nroFaseAnterior", (req, re
   const email = req.params.email;
   const idCurso = req.params.idCurso;
   const nroFase = req.params.nroFase;
-  const nroFaseAnterior =req.params.nroFaseAnterior;
+  const nroFaseAnterior = req.params.nroFaseAnterior;
   db.query(
     "UPDATE conclui_etapa SET NRO_FASE_ATUAL = ?,emailUsuario = ?, ID_usuario = ? WHERE emailUsuario = ? and ID_usuario = ? and NRO_FASE_ATUAL = ?",
-    [nroFase, email, idCurso,email,idCurso,nroFaseAnterior],
+    [nroFase, email, idCurso, email, idCurso, nroFaseAnterior],
     (err, result) => {
       if (err) console.log(err);
       else res.send(result);
     }
   );
 });
+
+app.post("/upload-curso", (req, res) => {
+  const nome = req.params.nome;
+  const descricao = req.params.descricao;
+  const urlVideoPreview = req.params.urlVideoPreview;
+
+
+  db.query(
+    "INSERT INTO curso (nome, descricao, URL_VIDEO_PREVIW) values (?,?,?)",
+    [nome, descricao, urlVideoPreview],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
+
+app.post("/upload-fase", (req, res) => {
+  const numero = req.params.numero;
+  const idCurso = req.params.idCurso;
+  const nome = req.params.nome;
+  const descricao = req.params.descricao;
+  const url = req.params.url;
+  const pergunta = req.params.pergunta;
+  const material = req.params.material;
+
+
+  db.query(
+    "INSERT INTO fases (NRO, ID_CURSO_ATUAL, nome, descricao, URL_VIDEO, pergunta, materialExtra) values (?,?,?,?,?,?,?)",
+    [numero, idCurso, nome, descricao, url, pergunta, material],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
+
+app.post("/upload-respostas", (req, res) => {
+  const numeroFase = req.params.numeroFase;
+  const idCurso = req.params.idCurso;
+  const alternativa1 = req.params.alternativa1;
+  const alternativa2 = req.params.alternativa2;
+  const alternativa3 = req.params.alternativa3;
+  const alternativa4 = req.params.alternativa4;
+  const correta = req.params.correta;
+
+
+
+  db.query(
+    "INSERT INTO fases (NRO_FASE, ID_cursoAtual, alternativa1, alternativa2, alternativa3, alternativa4, correta) values (?,?,?,?,?,?,?)",
+    [numeroFase, idCurso, alternativa1, alternativa2, alternativa3, alternativa4, correta],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
+
 
 
 app.listen(process.env.PORT || 3001, () => {
