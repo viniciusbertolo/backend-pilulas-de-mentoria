@@ -329,7 +329,7 @@ app.post("/upload-respostas", (req, res) => {
   const correta = req.body.correta;
 
   db.query(
-    "INSERT INTO fases (NRO_FASE, ID_cursoAtual, alternativa1, alternativa2, alternativa3, alternativa4, correta) values (?,?,?,?,?,?,?)",
+    "INSERT INTO alternativas (NRO_FASE, ID_cursoAtual, alternativa1, alternativa2, alternativa3, alternativa4, correta) values (?,?,?,?,?,?,?)",
     [numeroFase, idCurso, alternativa1, alternativa2, alternativa3, alternativa4, correta],
     (err, result) => {
       if (err) console.log(err);
