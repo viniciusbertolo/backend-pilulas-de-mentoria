@@ -188,6 +188,18 @@ app.get("/detalhes-usuario/:email", (req, res) => {
   );
 });
 
+app.get("/usuario-curso/:email", (req, res) => {
+  const email = req.params.email;
+  db.query(
+    "SELECT *  FROM usuario_curso where email_usuario = ?",
+    [email],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
 app.get("/videos/:id/:nroPilula", (req, res) => {
   const id = req.params.id;
   const nroPilula = req.params.nroPilula;
