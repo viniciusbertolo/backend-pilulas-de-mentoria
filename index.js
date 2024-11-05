@@ -50,11 +50,18 @@ app.post("/register", (req, res) => {
   db.query("SELECT * FROM usuarios WHERE email = ?", [email], (err, result) => {
     if (err) {
       res.send(err);
+      return;
     }
-    if (result.length == 0) {
+    if (result.length === 0) {
       bcrypt.hash(password, saltRounds, (err, hash) => {
+        if (err) {
+          res.send(err);
+          return;
+        }
+
+        // Primeiro INSERT na tabela `usuarios`
         db.query(
-          "INSERT INTO usuarios (email, password, profissao, nome, phone, cep, logradouro, numero, bairro, cidade, estado, data_nascimento,empresa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO usuarios (email, password, profissao, nome, phone, cep, logradouro, numero, bairro, cidade, estado, data_nascimento, empresa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
           [
             email,
             hash,
@@ -68,14 +75,28 @@ app.post("/register", (req, res) => {
             cidade,
             estado,
             data_nascimento,
-            empresa
+            empresa,
           ],
           (err, response) => {
             if (err) {
               res.send(err);
+              return;
             }
 
-            res.send({ msg: "Usuário cadastrado com sucesso" });
+            // Segundo INSERT na tabela `usuario_curso` após sucesso do primeiro
+            db.query(
+              "INSERT INTO usuario_curso (email_usuario, ID_CURSO) VALUES (?, NULL)",
+              [email],
+              (err, response) => {
+                if (err) {
+                  res.send(err);
+                  return;
+                }
+
+                // Resposta final após ambos os INSERTs serem bem-sucedidos
+                res.send({ msg: "Usuário cadastrado com sucesso" });
+              }
+            );
           }
         );
       });
@@ -84,6 +105,7 @@ app.post("/register", (req, res) => {
     }
   });
 });
+
 
 
 app.put("/update-senha/:email/:password", (req, res) => {
