@@ -363,9 +363,9 @@ app.post("/upload-respostas", (req, res) => {
 
 
 app.post("/liberar-curso/:email_usuario/:ID_CURSO/:codigo", (req, res) => {
-  const email_usuario = req.body.email_usuario;
-  const ID_CURSO = req.body.ID_CURSO;
-  const codigo = req.body.codigo;
+  const email_usuario = req.params.email_usuario;
+  const ID_CURSO = req.params.ID_CURSO;
+  const codigo = req.params.codigo;
 
 
   db.query(
