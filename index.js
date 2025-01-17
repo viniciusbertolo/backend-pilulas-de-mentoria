@@ -362,6 +362,25 @@ app.post("/upload-respostas", (req, res) => {
 
 
 
+app.post("/liberar-curso", (req, res) => {
+  const email = req.body.email;
+  const curso = req.body.curso;
+  const codigo = req.body.codigo;
+
+
+  db.query(
+    "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) values (?,?,?)",
+    [email, curso, codigo],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
+
+
+
 app.listen(process.env.PORT || 3001, () => {
   console.log("rodando na porta 3001");
 });
