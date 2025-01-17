@@ -362,7 +362,7 @@ app.post("/upload-respostas", (req, res) => {
 
 
 
-app.post("/liberar-curso", (req, res) => {
+app.post("/liberar-curso/:email/:curso/:codigo", (req, res) => {
   const email = req.body.email;
   const curso = req.body.curso;
   const codigo = req.body.codigo;
