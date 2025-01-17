@@ -362,15 +362,15 @@ app.post("/upload-respostas", (req, res) => {
 
 
 
-app.post("/liberar-curso/:email/:curso/:codigo", (req, res) => {
-  const email = req.body.email;
-  const curso = req.body.curso;
+app.post("/liberar-curso/:email_usuario/:ID_CURSO/:codigo", (req, res) => {
+  const email_usuario = req.body.email_usuario;
+  const ID_CURSO = req.body.ID_CURSO;
   const codigo = req.body.codigo;
 
 
   db.query(
     "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) values (?,?,?)",
-    [email, curso, codigo],
+    [email_usuario, ID_CURSO, codigo],
     (err, result) => {
       if (err) console.log(err);
       else res.send(result);
