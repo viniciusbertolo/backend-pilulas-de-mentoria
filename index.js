@@ -187,6 +187,50 @@ app.get("/usuario-curso/:email", (req, res) => {
   );
 });
 
+
+
+app.get("/usuarios-cursando/:empresa", (req, res) => {
+  const empresa = req.params.empresa;
+
+  const query = `
+    SELECT DISTINCT 
+        u.nome AS Nome_Usuario,
+        CASE 
+            WHEN ce.emailUsuario IS NOT NULL THEN 'SIM' 
+            ELSE 'NAO' 
+        END AS Cursando_Curso,
+        CASE 
+            WHEN ce.emailUsuario IS NOT NULL THEN ce.NRO_FASE_ATUAL
+            ELSE NULL
+        END AS Fase_Atual
+    FROM 
+        usuarios u
+    LEFT JOIN 
+        conclui_etapa ce ON u.email = ce.emailUsuario
+    LEFT JOIN 
+        fases f ON ce.NRO_FASE_ATUAL = f.NRO AND f.ID_CURSO_ATUAL = 74
+    WHERE 
+        (u.empresa LIKE ? OR u.email LIKE ?)
+        AND (ce.NRO_FASE_ATUAL IS NULL OR ce.NRO_FASE_ATUAL = (
+            SELECT MAX(sub_ce.NRO_FASE_ATUAL)
+            FROM conclui_etapa sub_ce
+            WHERE sub_ce.emailUsuario = u.email
+        ))
+    ORDER BY 
+        u.nome ASC;
+  `;
+
+  db.query(query, [`%${empresa}%`, `%${empresa}%`], (err, result) => {
+    if (err) {
+      console.log(err);
+      res.status(500).send({ error: "Erro ao executar a consulta." });
+    } else {
+      res.send(result);
+    }
+  });
+});
+
+
 app.get("/videos/:id/:nroPilula", (req, res) => {
   const id = req.params.id;
   const nroPilula = req.params.nroPilula;
@@ -273,8 +317,8 @@ app.post("/inserir-primeiro-caminho/:email/:idCurso/:nroFase", (req, res) => {
       }
       if (result.length == 0) {
         db.query(
-          "INSERT INTO conclui_etapa (emailUsuario, ID_usuario, NRO_FASE_ATUAL) values (?,?,?)",
-          [email, idCurso, nroFase],
+          "INSERT INTO conclui_etapa (emailUsuario, ID_usuario, NRO_FASE_ATUAL) values (?,?,?) ON DUPLICATE KEY UPDATE NRO_FASE_ATUAL = GREATEST(NRO_FASE_ATUAL, ?)",
+          [email, idCurso, nroFase, nroFase],
           (err, result) => {
             if (err) console.log(err);
             else res.send(result);
@@ -293,8 +337,8 @@ app.put("/pergunta-acertada/:email/:idCurso/:nroFase/:nroFaseAnterior", (req, re
   const nroFase = req.params.nroFase;
   const nroFaseAnterior = req.params.nroFaseAnterior;
   db.query(
-    "UPDATE conclui_etapa SET NRO_FASE_ATUAL = ?,emailUsuario = ?, ID_usuario = ? WHERE emailUsuario = ? and ID_usuario = ? and NRO_FASE_ATUAL = ?",
-    [nroFase, email, idCurso, email, idCurso, nroFaseAnterior],
+    "UPDATE conclui_etapa SET NRO_FASE_ATUAL = ? WHERE emailUsuario = ? and ID_usuario = ? and NRO_FASE_ATUAL = ?",
+    [nroFase, email, idCurso, nroFaseAnterior],
     (err, result) => {
       if (err) console.log(err);
       else res.send(result);
