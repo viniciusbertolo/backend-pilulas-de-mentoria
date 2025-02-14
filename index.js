@@ -95,21 +95,57 @@ app.post("/register", (req, res) => {
 
 
 
+// app.put("/update-senha/:email/:password", (req, res) => {
+//   const email = req.params.email;
+//   const password = req.params.password;
+
+
+//   db.query(
+//     "UPDATE usuarios SET password = ? WHERE email = ?",
+//     [password, email],
+//     (err, result) => {
+//       if (err) console.log(err);
+//       else res.send(result);
+//     }
+//   );
+// });
+
+
 app.put("/update-senha/:email/:password", (req, res) => {
   const email = req.params.email;
   const password = req.params.password;
 
-
-  db.query(
-    "UPDATE usuarios SET password = ? WHERE email = ?",
-    [password, email],
-    (err, result) => {
-      if (err) console.log(err);
-      else res.send(result);
+  // Verifica se o usuário existe
+  db.query("SELECT * FROM usuarios WHERE email = ?", [email], (err, result) => {
+    if (err) {
+      return res.status(500).send({ error: "Erro no banco de dados" });
     }
-  );
-});
 
+    if (result.length === 0) {
+      return res.status(404).send({ msg: "Usuário não encontrado" });
+    }
+
+    // Criptografa a nova senha
+    bcrypt.hash(password, saltRounds, (err, hash) => {
+      if (err) {
+        return res.status(500).send({ error: "Erro ao criptografar senha" });
+      }
+
+      // Atualiza a senha no banco
+      db.query(
+        "UPDATE usuarios SET password = ? WHERE email = ?",
+        [hash, email],
+        (err, response) => {
+          if (err) {
+            return res.status(500).send({ error: "Erro ao atualizar senha" });
+          }
+
+          res.send({ msg: "Senha atualizada com sucesso" });
+        }
+      );
+    });
+  });
+});
 
 
 
