@@ -461,6 +461,205 @@ app.post("/liberar-curso/:email_usuario/:ID_CURSO/:codigo", (req, res) => {
 
 
 
+
+
+app.post('/api/chat', async (req, res) => {
+  const { email, prompt } = req.body;
+
+  try {
+
+    // 1. Busca o nome do usuário pelo email
+    let userName = email; // fallback para email se não encontrar o nome
+    try {
+      // Para o driver mysql, precisa usar Promise ou callback
+      const userResult = await new Promise((resolve, reject) => {
+        db.query(
+          'SELECT nome FROM usuarios WHERE email = ?',
+          [email],
+          (error, results, fields) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(results);
+            }
+          }
+        );
+      });
+
+      console.log("Resultado da busca do usuário:", userResult);
+
+      if (userResult && Array.isArray(userResult) && userResult.length > 0) {
+        if (userResult[0].nome) {
+          userName = userResult[0].nome;
+          console.log("Nome encontrado:", userName);
+        } else {
+          console.log("Campo 'nome' está vazio, usando email como fallback");
+        }
+      } else {
+        console.log("Nenhum usuário encontrado com este email, usando email como fallback");
+      }
+
+    } catch (userError) {
+      console.error("Erro ao buscar nome do usuário:", userError);
+      // Mantém o email como fallback
+    }
+
+    // 1. Salva a pergunta do usuário no MySQL
+    await db.query(
+      'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
+      [email, 'user', prompt]
+    );
+
+    // 2. Busca o histórico de conversas do usuário
+    let historyRows = [];
+    try {
+      const result = await db.query(
+        'SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at ASC LIMIT 20',
+        [email]
+      );
+
+      // Garante que historyRows seja um array
+      if (Array.isArray(result)) {
+        // mysql2 retorna [rows, fields]
+        if (Array.isArray(result[0])) {
+          historyRows = result[0];
+        } else {
+          historyRows = result;
+        }
+      } else {
+        // fallback: força array vazio
+        historyRows = [];
+      }
+
+    } catch (dbError) {
+      console.error("Erro ao buscar histórico:", dbError);
+      historyRows = [];
+    }
+
+
+    const nome = userName
+            .split(' ')[0]
+            .toLowerCase()
+            .replace(/^\w/, c => c.toUpperCase());
+
+
+    // 3. Cria a mensagem do sistema
+    const systemMessage = {
+      role: "system",
+      content: `Você é uma inteligência artificial especialista em comportamento humano, com foco profundo no entendimento e manejo do medo.
+      Não responda nada que esteja fora desse escopo, você é limitada a faar sobre esse assunto
+      Seu papel é ouvir com empatia, identificar o tipo de medo apresentado (real, irracional, aprendido, traumático, antecipatório etc.) e oferecer orientações práticas, embasadas em psicologia, neurociência e inteligência emocional.
+Chame o usuario pelo nome dele, que é: ${nome}
+Sempre que um usuário compartilhar um medo, você deve:
+Dizer qual é o nome e a classificação desse medo, como por exemplo (Aracnofobia, Glossofobia, Atiquifobia, etc).
+
+Acolher emocionalmente o relato, demonstrando compreensão e empatia.
+
+Identificar o tipo e origem provável do medo (quando possível).
+
+Explicar, de forma simples, como esse tipo de medo atua no cérebro e no corpo.
+
+Sugerir estratégias realistas e personalizadas para lidar com esse medo (respiração, reestruturação cognitiva, enfrentamento gradual, apoio profissional etc.).
+
+Estimular o usuário a enxergar o medo como um sinal que pode ser compreendido e transformado.
+
+Sempre mantenha uma abordagem leve, respeitosa e nunca julgue o medo do usuário, por mais incomum que pareça.
+
+Quando estiver pronto, pergunte gentilmente:
+"Pode me contar qual medo você está sentindo agora? Estou aqui pra ajudar."`
+    };
+
+    // 4. Garante que historyRows é um array antes de filtrar/mapear
+    if (!Array.isArray(historyRows)) historyRows = [];
+
+    const formattedHistory = historyRows
+      .filter(row => row && row.role && row.content)
+      .map(row => ({
+        role: row.role === 'assistant' ? 'assistant' : 'user',
+        content: row.content || ""
+      }));
+
+    let messages = [systemMessage, ...formattedHistory];
+
+    // 5. Se o histórico estiver longo, mantém apenas as últimas 19 + systemMessage
+    if (messages.length > 20) {
+      messages = [systemMessage, ...messages.slice(-19)];
+    }
+
+    // 6. Adiciona a mensagem atual do usuário
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== prompt) {
+      messages.push({
+        role: 'user',
+        content: prompt
+      });
+    }
+
+    console.log("Mensagens enviadas para a API:", JSON.stringify(messages, null, 2));
+
+    // 7. Chama a API do OpenRouter
+    const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer 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`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-preview-05-20",
+        messages: messages,
+        max_tokens: 5000,
+        temperature: 0.7
+      })
+    });
+
+    const data = await openRouterResponse.json();
+
+    if (!data || !data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error("Resposta inválida da API:", data);
+      return res.status(500).json({ error: 'Resposta inválida da API' });
+    }
+
+    const aiReply = data.choices[0].message.content;
+
+    // 8. Salva a resposta da IA no MySQL
+    await db.query(
+      'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
+      [email, 'assistant', aiReply]
+    );
+
+    res.json({ reply: aiReply });
+  } catch (error) {
+    console.error("Erro ao processar chat:", error);
+    res.status(500).json({ error: 'Erro no servidor: ' + error.message });
+  }
+});
+
+
+
+
+app.get("/api/history/:email", (req, res) => {
+  const email = req.params.email;
+  db.query(
+    "SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at",
+    [email],
+    (err, result) => {
+      if (err) console.log(err);
+      else res.send(result);
+    }
+  );
+});
+
+
+
+
+
+
+
+
+
+
+
+
 app.listen(process.env.PORT || 3001, () => {
   console.log("rodando na porta 3001");
 });
