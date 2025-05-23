@@ -599,21 +599,42 @@ Quando estiver pronto, pergunte gentilmente:
     console.log("Mensagens enviadas para a API:", JSON.stringify(messages, null, 2));
 
     // 7. Chama a API do OpenRouter
-    const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    //     'Content-Type': 'application/json',
+    //   },
+    //   body: JSON.stringify({
+    //     model: "google/gemini-2.5-flash-preview-05-20",
+    //     messages: messages,
+    //     max_tokens: 5000,
+    //     temperature: 0.7
+    //   })
+    // });
+
+    const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-preview-05-20",
-        messages: messages,
-        max_tokens: 5000,
-        temperature: 0.7
-      })
+        contents: messages.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'model', // Gemini usa 'user' e 'model' em vez de 'user' e 'assistant'
+          parts: [{ text: msg.content }]
+        })),
+        generationConfig: {
+          maxOutputTokens: 5000,
+          temperature: 0.7
+        }
+      }),
+      // Adicione sua chave de API como parâmetro de consulta
+      searchParams: {
+        key: process.env.GOOGLE_API_KEY // Certifique-se de ter esta variável de ambiente configurada
+      }
     });
 
-    const data = await openRouterResponse.json();
+    const data = await geminiResponse.json();
 
     if (!data || !data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error("Resposta inválida da API:", data);
