@@ -5,6 +5,7 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const res = require("express/lib/response");
 const { redirect } = require("express/lib/response");
+require('dotenv').config();
 const saltRounds = 10;
 
 {
@@ -601,7 +602,7 @@ Quando estiver pronto, pergunte gentilmente:
     const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer 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`,
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
