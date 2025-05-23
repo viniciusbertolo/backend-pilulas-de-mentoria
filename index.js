@@ -666,34 +666,22 @@ app.post('/api/chat', async (req, res) => {
   const { email, prompt } = req.body;
 
   try {
-    // 1. Busca o nome do usuário pelo email
-    let userName = email; // fallback para email se não encontrar o nome
+    // 1. Busca o nome do usuário pelo email (mantido igual)
+    let userName = email;
     try {
       const userResult = await new Promise((resolve, reject) => {
         db.query(
           'SELECT nome FROM usuarios WHERE email = ?',
           [email],
           (error, results, fields) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve(results);
-            }
+            if (error) reject(error);
+            else resolve(results);
           }
         );
       });
 
-      console.log("Resultado da busca do usuário:", userResult);
-
-      if (userResult && Array.isArray(userResult) && userResult.length > 0) {
-        if (userResult[0].nome) {
-          userName = userResult[0].nome;
-          console.log("Nome encontrado:", userName);
-        } else {
-          console.log("Campo 'nome' está vazio, usando email como fallback");
-        }
-      } else {
-        console.log("Nenhum usuário encontrado com este email, usando email como fallback");
+      if (userResult && Array.isArray(userResult) && userResult.length > 0 && userResult[0].nome) {
+        userName = userResult[0].nome;
       }
     } catch (userError) {
       console.error("Erro ao buscar nome do usuário:", userError);
@@ -705,122 +693,98 @@ app.post('/api/chat', async (req, res) => {
       [email, 'user', prompt]
     );
 
-    // 3. Busca o histórico de conversas do usuário
+    // 3. Busca o histórico de conversas
     let historyRows = [];
     try {
       const result = await db.query(
         'SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at ASC LIMIT 20',
         [email]
       );
-
-      if (Array.isArray(result)) {
-        historyRows = Array.isArray(result[0]) ? result[0] : result;
-      }
+      historyRows = Array.isArray(result[0]) ? result[0] : result;
     } catch (dbError) {
       console.error("Erro ao buscar histórico:", dbError);
     }
 
-    const nome = userName
-      .split(' ')[0]
-      .toLowerCase()
-      .replace(/^\w/, c => c.toUpperCase());
+    const nome = userName.split(' ')[0].toLowerCase().replace(/^\w/, c => c.toUpperCase());
 
-    // 4. Cria a mensagem do sistema
-    const systemMessage = {
-      role: "system", // No Gemini, o role "system" não existe, vamos converter para "model"
-      content: `Você é uma inteligência artificial especialista em comportamento humano, com foco profundo no entendimento e manejo do medo.
-      Não responda nada que esteja fora desse escopo, você é limitada a faar sobre esse assunto
-      Seu papel é ouvir com empatia, identificar o tipo de medo apresentado (real, irracional, aprendido, traumático, antecipatório etc.) e oferecer orientações práticas, embasadas em psicologia, neurociência e inteligência emocional.
-Chame o usuario pelo nome dele, que é: ${nome}
-Sempre que um usuário compartilhar um medo, você deve:
-Dizer qual é o nome e a classificação desse medo, como por exemplo (Aracnofobia, Glossofobia, Atiquifobia, etc).
-
-Acolher emocionalmente o relato, demonstrando compreensão e empatia.
-
-Identificar o tipo e origem provável do medo (quando possível).
-
-Explicar, de forma simples, como esse tipo de medo atua no cérebro e no corpo.
-
-Sugerir estratégias realistas e personalizadas para lidar com esse medo (respiração, reestruturação cognitiva, enfrentamento gradual, apoio profissional etc.).
-
-Estimular o usuário a enxergar o medo como um sinal que pode ser compreendido e transformado.
-
-Sempre mantenha uma abordagem leve, respeitosa e nunca julgue o medo do usuário, por mais incomum que pareça.
-
-Quando estiver pronto, pergunte gentilmente:
-"Pode me contar qual medo você está sentindo agora? Estou aqui pra ajudar."` // (seu conteúdo original aqui)
+    // 4. Prepara as mensagens para o Gemini
+    const systemInstruction = {
+      role: "user", // No Gemini, colocamos a instrução do sistema como se fosse uma mensagem do usuário
+      parts: [{
+        text: `Você é uma inteligência artificial especialista em comportamento humano, com foco profundo no entendimento e manejo do medo.
+        Chame o usuário pelo nome dele, que é: ${nome}
+        Suas respostas devem seguir rigorosamente estas regras:
+        1. Identificar e classificar o tipo de medo (ex: Aracnofobia, Glossofobia)
+        2. Acolher emocionalmente o relato
+        3. Explicar como o medo atua no cérebro e corpo
+        4. Sugerir estratégias práticas
+        5. Manter abordagem empática e não julgadora
+        6. Responder APENAS sobre medos e comportamento humano
+        
+        Exemplo de resposta:
+        "Entendo seu medo, ${nome}. Isso parece ser [...] (classificação). 
+        Esse tipo de medo ativa [...] no cérebro. Vamos trabalhar juntos nisso.
+        Que tal tentarmos [...] (estratégia)?"`
+      }]
     };
 
-    // 5. Formata o histórico para o Gemini
-    if (!Array.isArray(historyRows)) historyRows = [];
+    const examples = {
+      role: "model",
+      parts: [{
+        text: "Pode me contar qual medo você está sentindo agora? Estou aqui para ajudar."
+      }]
+    };
 
-    const formattedHistory = historyRows
+    // Formata o histórico
+    const chatHistory = historyRows
       .filter(row => row && row.role && row.content)
       .map(row => ({
-        role: row.role === 'assistant' ? 'model' : 'user', // Gemini usa 'model' em vez de 'assistant'
-        content: row.content || ""
+        role: row.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: row.content }]
       }));
 
-    let messages = [systemMessage, ...formattedHistory];
-
-    // 6. Se o histórico estiver longo, mantém apenas as últimas 19 + systemMessage
-    if (messages.length > 20) {
-      messages = [systemMessage, ...messages.slice(-19)];
-    }
-
-    // 7. Adiciona a mensagem atual do usuário
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage || lastMessage.role !== 'user' || lastMessage.content !== prompt) {
-      messages.push({
-        role: 'user',
-        content: prompt
-      });
-    }
-
-    console.log("Mensagens enviadas para a API:", JSON.stringify(messages, null, 2));
-
-    // 8. Chama a API do Gemini
+    // 5. Chama a API do Gemini com a estrutura correta
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GOOGLE_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: messages.map(msg => ({
-          role: msg.role === 'system' ? 'model' : msg.role, // Converte 'system' para 'model'
-          parts: [{ text: msg.content }]
-        })),
+        contents: [
+          systemInstruction,
+          examples,
+          ...chatHistory,
+          { role: "user", parts: [{ text: prompt }] }
+        ],
         generationConfig: {
           maxOutputTokens: 5000,
           temperature: 0.7
+        },
+        systemInstruction: {
+          parts: [{
+            text: "Você é um assistente especializado em psicologia e manejo de medos. Siga rigorosamente as instruções fornecidas na primeira mensagem do usuário."
+          }]
         }
       })
     });
-    
+
     if (!geminiResponse.ok) {
       const errorData = await geminiResponse.json();
-      throw new Error(`Erro na API do Gemini: ${JSON.stringify(errorData)}`);
+      throw new Error(`Erro na API: ${JSON.stringify(errorData)}`);
     }
-    
+
     const responseData = await geminiResponse.json();
-    
-    // Extrai a resposta do Gemini
-    if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content) {
-      throw new Error('Resposta inválida da API do Gemini');
-    }
-    
     const aiReply = responseData.candidates[0].content.parts[0].text;
 
-    // 9. Salva a resposta da IA no MySQL
+    // 6. Salva a resposta
     await db.query(
       'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
       [email, 'assistant', aiReply]
     );
 
     res.json({ reply: aiReply });
+
   } catch (error) {
-    console.error("Erro ao processar chat:", error);
-    res.status(500).json({ error: 'Erro no servidor: ' + error.message });
+    console.error("Erro no chat:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
