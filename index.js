@@ -613,28 +613,32 @@ Quando estiver pronto, pergunte gentilmente:
     //   })
     // });
 
-    const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         contents: messages.map(msg => ({
-          role: msg.role === 'user' ? 'user' : 'model', // Gemini usa 'user' e 'model' em vez de 'user' e 'assistant'
+          role: msg.role === 'user' ? 'user' : 'model',
           parts: [{ text: msg.content }]
         })),
         generationConfig: {
           maxOutputTokens: 5000,
           temperature: 0.7
         }
-      }),
-      // Adicione sua chave de API como parâmetro de consulta
-      searchParams: {
-        key: process.env.GOOGLE_API_KEY // Certifique-se de ter esta variável de ambiente configurada
-      }
+      })
     });
+    
+    if (!geminiResponse.ok) {
+      const errorData = await geminiResponse.json();
+      throw new Error(`Erro na API do Gemini: ${JSON.stringify(errorData)}`);
+    }
+    
+    const responseData = await geminiResponse.json();
+    const data = responseData.candidates[0].content.parts[0].text;
 
-    const data = await geminiResponse.json();
+    // const data = await geminiResponse.json();
 
     if (!data || !data.choices || !data.choices[0] || !data.choices[0].message) {
       console.error("Resposta inválida da API:", data);
