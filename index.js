@@ -1,11 +1,29 @@
-const express = require("express");
+// const express = require("express");
+// const app = express();
+// const mysql = require("mysql");
+// const cors = require("cors");
+// const bcrypt = require("bcrypt");
+// const res = require("express/lib/response");
+// const { redirect } = require("express/lib/response");
+// require('dotenv').config();
+// const saltRounds = 10;
+
+// import bodyParser from "body-parser";
+// import Stripe from "stripe";
+
+
+
+import express from "express";
+import mysql from "mysql";
+import cors from "cors";
+import bcrypt from "bcrypt";
+import bodyParser from "body-parser";
+import dotenv from "dotenv";
+import Stripe from "stripe";
+
+dotenv.config(); // substitui require('dotenv').config()
+
 const app = express();
-const mysql = require("mysql");
-const cors = require("cors");
-const bcrypt = require("bcrypt");
-const res = require("express/lib/response");
-const { redirect } = require("express/lib/response");
-require('dotenv').config();
 const saltRounds = 10;
 
 
@@ -620,6 +638,77 @@ app.get("/api/history/:email", (req, res) => {
 
 
 
+
+
+app.use(bodyParser.json());
+
+//chave api
+const stripe = new Stripe('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');
+
+// ---- Criar sessão de pagamento ----
+app.post("/api/payments/create-checkout", async (req, res) => {
+  try {
+    const { email_usuario, ID_CURSO, codigo } = req.body;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "brl",
+            product_data: { name: "Curso " + ID_CURSO },
+            unit_amount: 50, // em centavos (R$50,00)
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: `https://pilulasdementoria.com.br/cursos`,
+      cancel_url: `https://pilulasdementoria.com.br/`,
+      metadata: { email_usuario, ID_CURSO, codigo } // adiciona dados do curso
+    });
+
+    res.json({ id: session.id, url: session.url });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Erro ao criar checkout");
+  }
+});
+
+// ---- Webhook Stripe ----
+app.post("/webhook", bodyParser.raw({ type: "application/json" }), (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      'whsec_t3VVXg0cjI81ioGG40flWhp0iheQcxvc' // configure no dashboard
+    );
+  } catch (err) {
+    console.error("Erro webhook:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Só dispara quando o pagamento foi concluído
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const { email_usuario, ID_CURSO, codigo } = session.metadata;
+
+    // Insere no banco (libera curso)
+    db.query(
+      "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)",
+      [email_usuario, ID_CURSO, codigo],
+      (err, result) => {
+        if (err) console.error("Erro ao liberar curso:", err);
+        else console.log("Curso liberado para:", email_usuario);
+      }
+    );
+  }
+
+  res.json({ received: true });
+});
 
 
 
