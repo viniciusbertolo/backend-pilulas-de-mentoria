@@ -643,7 +643,7 @@ app.get("/api/history/:email", (req, res) => {
 app.use(bodyParser.json());
 
 //chave api
-const stripe = new Stripe('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');
+const stripe = new Stripe(process.env.STRIPE_API_KEY);
 
 // ---- Criar sessão de pagamento ----
 app.post("/api/payments/create-checkout", async (req, res) => {
@@ -684,7 +684,7 @@ app.post("/webhook", bodyParser.raw({ type: "application/json" }), (req, res) =>
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
-      'whsec_t3VVXg0cjI81ioGG40flWhp0iheQcxvc' // configure no dashboard
+      process.env.WEBHOOK// configure no dashboard
     );
   } catch (err) {
     console.error("Erro webhook:", err.message);
