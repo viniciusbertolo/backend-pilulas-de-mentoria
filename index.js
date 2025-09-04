@@ -27,6 +27,127 @@ const app = express();
 const saltRounds = 10;
 
 
+
+
+// 1. Primeiro: webhook raw (ANTES dos outros middlewares de parsing)
+app.post('/webhook', 
+  bodyParser.raw({ type: 'application/json' }), 
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    console.log('=== WEBHOOK DEBUG ===');
+    console.log('Body type:', typeof req.body);
+    console.log('Body is Buffer:', Buffer.isBuffer(req.body));
+    console.log('Body length:', req.body?.length);
+    console.log('Signature present:', !!sig);
+
+    try {
+      const webhookSecret = process.env.WEBHOOK;
+      if (!webhookSecret) {
+        console.error('WEBHOOK_SECRET não configurado!');
+        return res.status(500).send('Webhook secret não configurado');
+      }
+
+      // Verifica se req.body é Buffer
+      if (!Buffer.isBuffer(req.body)) {
+        console.error('Body não é Buffer, é:', typeof req.body);
+        return res.status(400).send('Body deve ser Buffer');
+      }
+
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        webhookSecret
+      );
+      
+      console.log('✅ Evento validado:', event.type);
+    } catch (err) {
+      console.error('❌ Erro na validação do webhook:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Log de todos os eventos recebidos
+    console.log('Evento recebido:', {
+      type: event.type,
+      id: event.id,
+      created: new Date(event.created * 1000).toISOString()
+    });
+
+    // Processa quando o pagamento foi concluído
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      
+      console.log('Sessão completada:', {
+        sessionId: session.id,
+        paymentStatus: session.payment_status,
+        metadata: session.metadata
+      });
+
+      // Verifica se o pagamento foi realmente pago
+      if (session.payment_status === 'paid') {
+        const { email_usuario, ID_CURSO, codigo } = session.metadata;
+
+        // Validação dos metadados
+        if (!email_usuario || !ID_CURSO || !codigo) {
+          console.error('❌ Metadados incompletos:', session.metadata);
+          return res.status(400).send('Metadados incompletos');
+        }
+
+        console.log('💰 Tentando liberar curso para:', { email_usuario, ID_CURSO, codigo });
+
+        // Verifica se o curso já foi liberado
+        db.query(
+          'SELECT * FROM usuario_curso WHERE email_usuario = ? AND ID_CURSO = ?',
+          [email_usuario, ID_CURSO],
+          (err, results) => {
+            if (err) {
+              console.error('❌ Erro ao verificar curso existente:', err);
+              return;
+            }
+
+            if (results && results.length > 0) {
+              console.log('⚠️ Curso já liberado anteriormente para:', email_usuario);
+              return;
+            }
+
+            // Insere no banco (libera curso)
+            db.query(
+              'INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)',
+              [email_usuario, ID_CURSO, codigo, session.id],
+              (err, result) => {
+                if (err) {
+                  console.error('❌ Erro ao liberar curso:', err);
+                  console.error('Detalhes do erro:', {
+                    code: err.code,
+                    errno: err.errno,
+                    sqlMessage: err.sqlMessage,
+                    sql: err.sql
+                  });
+                } else {
+                  console.log('✅🎉 CURSO LIBERADO COM SUCESSO!', {
+                    email_usuario,
+                    ID_CURSO,
+                    codigo,
+                    insertId: result.insertId,
+                    sessionId: session.id,
+                    timestamp: new Date().toISOString()
+                  });
+                }
+              }
+            );
+          }
+        );
+      } else {
+        console.log('⚠️ Pagamento não foi confirmado. Status:', session.payment_status);
+      }
+    }
+
+    // Sempre responde 200 para o Stripe
+    res.status(200).json({ received: true });
+  }
+);
+
 // Aumentar o limite para 50MB (ajuste conforme necessário)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -676,39 +797,151 @@ app.post("/api/payments/create-checkout", async (req, res) => {
 });
 
 // ---- Webhook Stripe ----
-app.post("/webhook", bodyParser.raw({ type: "application/json" }), (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  let event;
+// app.post("/webhook", bodyParser.raw({ type: "application/json" }), (req, res) => {
+//   const sig = req.headers["stripe-signature"];
+//   let event;
 
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.WEBHOOK// configure no dashboard
-    );
-  } catch (err) {
-    console.error("Erro webhook:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+//   try {
+//     event = stripe.webhooks.constructEvent(
+//       req.body,
+//       sig,
+//       process.env.WEBHOOK// configure no dashboard
+//     );
+//   } catch (err) {
+//     console.error("Erro webhook:", err.message);
+//     return res.status(400).send(`Webhook Error: ${err.message}`);
+//   }
 
-  // Só dispara quando o pagamento foi concluído
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-    const { email_usuario, ID_CURSO, codigo } = session.metadata;
+//   // Só dispara quando o pagamento foi concluído
+//   if (event.type === "checkout.session.completed") {
+//     const session = event.data.object;
+//     const { email_usuario, ID_CURSO, codigo } = session.metadata;
 
-    // Insere no banco (libera curso)
-    db.query(
-      "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)",
-      [email_usuario, ID_CURSO, codigo],
-      (err, result) => {
-        if (err) console.error("Erro ao liberar curso:", err);
-        else console.log("Curso liberado para:", email_usuario);
-      }
-    );
-  }
+//     // Insere no banco (libera curso)
+//     db.query(
+//       "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)",
+//       [email_usuario, ID_CURSO, codigo],
+//       (err, result) => {
+//         if (err) console.error("Erro ao liberar curso:", err);
+//         else console.log("Curso liberado para:", email_usuario);
+//       }
+//     );
+//   }
 
-  res.json({ received: true });
-});
+//   res.json({ received: true });
+// });
+
+
+
+// ---- Webhook Stripe ----
+// app.post("/webhook", bodyParser.raw({ type: "application/json" }), async (req, res) => {
+//   const sig = req.headers["stripe-signature"];
+//   let event;
+
+//   console.log("Webhook recebido:", {
+//     signature: sig ? "presente" : "ausente",
+//     bodyLength: req.body.length
+//   });
+
+//   try {
+//     // Certifique-se de que WEBHOOK_SECRET está configurado
+//     const webhookSecret = process.env.WEBHOOK;
+//     if (!webhookSecret) {
+//       console.error("WEBHOOK_SECRET não configurado!");
+//       return res.status(500).send("Webhook secret não configurado");
+//     }
+
+//     event = stripe.webhooks.constructEvent(
+//       req.body,
+//       sig,
+//       webhookSecret
+//     );
+    
+//     console.log("Evento validado:", event.type);
+//   } catch (err) {
+//     console.error("Erro na validação do webhook:", err.message);
+//     return res.status(400).send(`Webhook Error: ${err.message}`);
+//   }
+
+//   // Log de todos os eventos recebidos
+//   console.log("Evento recebido:", {
+//     type: event.type,
+//     id: event.id,
+//     created: new Date(event.created * 1000).toISOString()
+//   });
+
+//   // Processa quando o pagamento foi concluído
+//   if (event.type === "checkout.session.completed") {
+//     const session = event.data.object;
+    
+//     console.log("Sessão completada:", {
+//       sessionId: session.id,
+//       paymentStatus: session.payment_status,
+//       metadata: session.metadata
+//     });
+
+//     // Verifica se o pagamento foi realmente pago
+//     if (session.payment_status === "paid") {
+//       const { email_usuario, ID_CURSO, codigo } = session.metadata;
+
+//       // Validação dos metadados
+//       if (!email_usuario || !ID_CURSO || !codigo) {
+//         console.error("Metadados incompletos:", session.metadata);
+//         return res.status(400).send("Metadados incompletos");
+//       }
+
+//       console.log("Tentando liberar curso para:", { email_usuario, ID_CURSO, codigo });
+
+//       // Verifica se o curso já foi liberado
+//       db.query(
+//         "SELECT * FROM usuario_curso WHERE email_usuario = ? AND ID_CURSO = ?",
+//         [email_usuario, ID_CURSO],
+//         (err, results) => {
+//           if (err) {
+//             console.error("Erro ao verificar curso existente:", err);
+//             return;
+//           }
+
+//           if (results && results.length > 0) {
+//             console.log("Curso já liberado anteriormente para:", email_usuario);
+//             return;
+//           }
+
+//           // Insere no banco (libera curso)
+//           db.query(
+//             "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) values (?,?,?)",
+//             [email_usuario, ID_CURSO, codigo],
+//             (err, result) => {
+//               if (err) {
+//                 console.error("Erro ao liberar curso:", err);
+//                 // Log detalhado do erro
+//                 console.error("Detalhes do erro:", {
+//                   code: err.code,
+//                   errno: err.errno,
+//                   sqlMessage: err.sqlMessage,
+//                   sql: err.sql
+//                 });
+//               } else {
+//                 console.log("✅ Curso liberado com sucesso!", {
+//                   email_usuario,
+//                   ID_CURSO,
+//                   codigo,
+//                   insertId: result.insertId,
+//                   sessionId: session.id
+//                 });
+//               }
+//             }
+//           );
+//         }
+//       );
+//     } else {
+//       console.log("Pagamento não foi confirmado. Status:", session.payment_status);
+//     }
+//   }
+
+//   // Sempre responde 200 para o Stripe
+//   res.status(200).json({ received: true });
+// });
 
 
 
