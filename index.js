@@ -769,7 +769,7 @@ const stripe = new Stripe(process.env.STRIPE_API_KEY);
 // ---- Criar sessão de pagamento ----
 app.post("/api/payments/create-checkout", async (req, res) => {
   try {
-    const { email_usuario, ID_CURSO, codigo } = req.body;
+    const { email_usuario, ID_CURSO, codigo, valor } = req.body;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -778,7 +778,7 @@ app.post("/api/payments/create-checkout", async (req, res) => {
           price_data: {
             currency: "brl",
             product_data: { name: "Curso " + ID_CURSO },
-            unit_amount: 50, // em centavos (R$50,00)
+            unit_amount: valor, // em centavos (R$50,00)
           },
           quantity: 1,
         },
@@ -786,7 +786,7 @@ app.post("/api/payments/create-checkout", async (req, res) => {
       mode: "payment",
       success_url: `https://pilulasdementoria.com.br/cursos`,
       cancel_url: `https://pilulasdementoria.com.br/`,
-      metadata: { email_usuario, ID_CURSO, codigo } // adiciona dados do curso
+      metadata: { email_usuario, ID_CURSO, codigo, valor } // adiciona dados do curso
     });
 
     res.json({ id: session.id, url: session.url });
