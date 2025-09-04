@@ -333,6 +333,14 @@ app.get("/cursos", (req, res) => {
   });
 });
 
+app.get("/materiais", (req, res) => {
+  let sql = "SELECT *  FROM materiais_extras";
+  db.query(sql, (err, result) => {
+    if (err) console.log(err);
+    else res.send(result);
+  });
+});
+
 app.get("/fases/:id", (req, res) => {
   const id = req.params.id;
   db.query(
