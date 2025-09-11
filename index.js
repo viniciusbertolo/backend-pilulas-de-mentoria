@@ -20,7 +20,7 @@ import bcrypt from "bcrypt";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import Stripe from "stripe";
-import mercadopago from "mercadopago";
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
 dotenv.config(); // substitui require('dotenv').config()
 
@@ -812,16 +812,16 @@ app.use(bodyParser.json());
 
 
 // ------------------- Mercado Pago ------------------- //
-mercadopago.configure({
-  access_token: process.env.MP_ACCESS_TOKEN,
-});
+// Inicializa o cliente do Mercado Pago com sua access token
+const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 
 // ------------------- Criar checkout ------------------- //
 app.post("/api/payments/create-checkout", async (req, res) => {
   try {
     const { email_usuario, ID_CURSO, codigo, valor } = req.body;
 
-    const preference = {
+    // O objeto de preferência agora vai dentro da propriedade "body"
+    const preferencePayload = {
       items: [
         {
           title: "Curso " + ID_CURSO,
@@ -842,9 +842,13 @@ app.post("/api/payments/create-checkout", async (req, res) => {
       },
     };
 
-    const response = await mercadopago.preferences.create(preference);
+    // Cria uma instância do cliente de Preferências
+    const preference = new Preference(client);
+    
+    // Cria a preferência usando o cliente
+    const response = await preference.create({ body: preferencePayload });
 
-    res.json({ id: response.body.id, url: response.body.init_point });
+    res.json({ id: response.id, url: response.init_point });
   } catch (error) {
     console.error("Erro ao criar checkout:", error);
     res.status(500).send("Erro ao criar checkout");
@@ -859,11 +863,15 @@ app.post("/api/payments/webhook", async (req, res) => {
     if (data.type === "payment") {
       const paymentId = data.data.id;
 
-      // Buscar detalhes do pagamento
-      const payment = await mercadopago.payment.findById(paymentId);
+      // Cria uma instância do cliente de Pagamentos
+      const paymentClient = new Payment(client);
+      
+      // Busca detalhes do pagamento usando o método get()
+      const payment = await paymentClient.get({ id: paymentId });
 
-      const status = payment.body.status;
-      const metadata = payment.body.metadata;
+      // Os dados agora vêm diretamente no objeto, sem o "body"
+      const status = payment.status;
+      const metadata = payment.metadata;
 
       if (status === "approved") {
         console.log("✅ Pagamento aprovado:", metadata);
