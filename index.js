@@ -835,7 +835,8 @@ app.post("/api/payments/create-checkout", async (req, res) => {
         pending: "https://pilulasdementoria.com.br/",
       },
       auto_return: "approved",
-      metadata: { email_usuario, ID_CURSO, codigo, valor },
+      // ATENÇÃO: Enviando o ID do curso como 'id_curso' (minúsculo)
+      metadata: { email_usuario, id_curso: ID_CURSO, codigo, valor },
       payment_methods: {
         excluded_payment_types: [],
         default_payment_method_id: "pix",
@@ -860,33 +861,32 @@ app.post("/api/payments/webhook", async (req, res) => {
   try {
     const data = req.body;
 
-     // Log para ver o corpo da requisição do webhook
-    console.log("--- NOVO WEBHOOK RECEBIDO ---");
-    console.log("Corpo (body):", JSON.stringify(data, null, 2));
-    console.log("Parâmetros da URL (query):", JSON.stringify(req.query, null, 2));
-
     if (data.type === "payment") {
       const paymentId = data.data.id;
 
-      // Cria uma instância do cliente de Pagamentos
       const paymentClient = new Payment(client);
-      
-      // Busca detalhes do pagamento usando o método get()
       const payment = await paymentClient.get({ id: paymentId });
-
-      // Os dados agora vêm diretamente no objeto, sem o "body"
+      
       const status = payment.status;
       const metadata = payment.metadata;
 
       if (status === "approved") {
         console.log("✅ Pagamento aprovado:", metadata);
 
-        const { email_usuario, ID_CURSO, codigo } = metadata;
+        // CORREÇÃO: Lendo 'id_curso' com 'i' minúsculo
+        const { email_usuario, id_curso, codigo } = metadata;
+        
+        // Verifica se os dados essenciais existem
+        if (!email_usuario || !id_curso) {
+          console.error("❌ Metadata incompleta. Não é possível liberar o curso.", metadata);
+          return res.sendStatus(200); // Responde 200 para não receber re-tentativas
+        }
 
         // Verifica se o curso já foi liberado
         db.query(
           "SELECT * FROM usuario_curso WHERE email_usuario = ? AND ID_CURSO = ?",
-          [email_usuario, ID_CURSO],
+          // CORREÇÃO: Usando a variável correta 'id_curso'
+          [email_usuario, id_curso],
           (err, results) => {
             if (err) return console.error("❌ Erro ao verificar curso:", err);
 
@@ -901,12 +901,13 @@ app.post("/api/payments/webhook", async (req, res) => {
             // Insere no banco (libera curso)
             db.query(
               "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)",
-              [email_usuario, ID_CURSO, codigo],
+              // CORREÇÃO: Usando a variável correta 'id_curso'
+              [email_usuario, id_curso, codigo],
               (err, result) => {
                 if (err) return console.error("❌ Erro ao liberar curso:", err);
                 console.log("✅ CURSO LIBERADO COM SUCESSO!", {
                   email_usuario,
-                  ID_CURSO,
+                  ID_CURSO: id_curso,
                   codigo,
                   insertId: result.insertId,
                   paymentId,
@@ -921,12 +922,13 @@ app.post("/api/payments/webhook", async (req, res) => {
       }
     }
 
-    return res.sendStatus(200); // Sempre responder 200 pro Mercado Pago
+    return res.sendStatus(200);
   } catch (error) {
     console.error("Erro no webhook:", error);
     return res.sendStatus(500);
   }
 });
+
 
 
 
