@@ -835,6 +835,8 @@ app.post("/api/payments/create-checkout", async (req, res) => {
         pending: "https://pilulasdementoria.com.br/",
       },
       auto_return: "approved",
+      // ADICIONADO: URL do webhook para garantir notificação imediata
+      notification_url: "https://backend-pilulas-mentoria.herokuapp.com/api/payments/webhook",
       // ATENÇÃO: Enviando o ID do curso como 'id_curso' (minúsculo)
       metadata: { email_usuario, id_curso: ID_CURSO, codigo, valor },
       payment_methods: {
@@ -928,7 +930,6 @@ app.post("/api/payments/webhook", async (req, res) => {
     return res.sendStatus(500);
   }
 });
-
 
 
 
