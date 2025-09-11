@@ -860,6 +860,11 @@ app.post("/api/payments/webhook", async (req, res) => {
   try {
     const data = req.body;
 
+     // Log para ver o corpo da requisição do webhook
+    console.log("--- NOVO WEBHOOK RECEBIDO ---");
+    console.log("Corpo (body):", JSON.stringify(data, null, 2));
+    console.log("Parâmetros da URL (query):", JSON.stringify(req.query, null, 2));
+
     if (data.type === "payment") {
       const paymentId = data.data.id;
 
