@@ -29,89 +29,7 @@ const saltRounds = 10;
 
 
 
-// Configuração Mercado Pago
-mercadopago.configure({
-  access_token: process.env.MP_ACCESS_TOKEN,
-});
 
-
-// ---- Webhook Mercado Pago ----
-app.post("/api/payments/webhook", async (req, res) => {
-  try {
-    const data = req.body;
-
-    // Mercado Pago manda eventos de vários tipos
-    if (data.type === "payment") {
-      const paymentId = data.data.id;
-
-      // Buscar detalhes do pagamento
-      const payment = await mercadopago.payment.findById(paymentId);
-
-      const status = payment.body.status;
-      const metadata = payment.body.metadata;
-
-      if (status === "approved") {
-        console.log("✅ Pagamento aprovado:", metadata);
-
-        const { email_usuario, ID_CURSO, codigo } = metadata;
-
-        // 🔑 Verifica se o curso já foi liberado
-        db.query(
-          "SELECT * FROM usuario_curso WHERE email_usuario = ? AND ID_CURSO = ?",
-          [email_usuario, ID_CURSO],
-          (err, results) => {
-            if (err) {
-              console.error("❌ Erro ao verificar curso existente:", err);
-              return;
-            }
-
-            if (results && results.length > 0) {
-              console.log(
-                "⚠️ Curso já liberado anteriormente para:",
-                email_usuario
-              );
-              return;
-            }
-
-            // 🔓 Insere no banco (libera curso)
-            db.query(
-              "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)",
-              [email_usuario, ID_CURSO, codigo],
-              (err, result) => {
-                if (err) {
-                  console.error("❌ Erro ao liberar curso:", err);
-                  console.error("Detalhes do erro:", {
-                    code: err.code,
-                    errno: err.errno,
-                    sqlMessage: err.sqlMessage,
-                    sql: err.sql,
-                  });
-                } else {
-                  console.log("✅🎉 CURSO LIBERADO COM SUCESSO!", {
-                    email_usuario,
-                    ID_CURSO,
-                    codigo,
-                    insertId: result.insertId,
-                    paymentId,
-                    timestamp: new Date().toISOString(),
-                  });
-                }
-              }
-            );
-          }
-        );
-      } else {
-        console.log("ℹ️ Pagamento com status:", status);
-      }
-    }
-
-    // 🔥 MUITO IMPORTANTE: sempre responder 200 pro Mercado Pago
-    return res.sendStatus(200);
-  } catch (error) {
-    console.error("Erro no webhook:", error);
-    return res.sendStatus(500);
-  }
-});
 
 
 
@@ -893,7 +811,10 @@ app.use(bodyParser.json());
 
 
 
-
+// Configuração Mercado Pago
+mercadopago.configure({
+  access_token: process.env.MP_ACCESS_TOKEN,
+});
 
 
 // ---- Criar sessão de pagamento ----
@@ -928,6 +849,89 @@ app.post("/api/payments/create-checkout", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send("Erro ao criar checkout");
+  }
+});
+
+
+
+
+
+
+// ---- Webhook Mercado Pago ----
+app.post("/api/payments/webhook", async (req, res) => {
+  try {
+    const data = req.body;
+
+    // Mercado Pago manda eventos de vários tipos
+    if (data.type === "payment") {
+      const paymentId = data.data.id;
+
+      // Buscar detalhes do pagamento
+      const payment = await mercadopago.payment.findById(paymentId);
+
+      const status = payment.body.status;
+      const metadata = payment.body.metadata;
+
+      if (status === "approved") {
+        console.log("✅ Pagamento aprovado:", metadata);
+
+        const { email_usuario, ID_CURSO, codigo } = metadata;
+
+        // 🔑 Verifica se o curso já foi liberado
+        db.query(
+          "SELECT * FROM usuario_curso WHERE email_usuario = ? AND ID_CURSO = ?",
+          [email_usuario, ID_CURSO],
+          (err, results) => {
+            if (err) {
+              console.error("❌ Erro ao verificar curso existente:", err);
+              return;
+            }
+
+            if (results && results.length > 0) {
+              console.log(
+                "⚠️ Curso já liberado anteriormente para:",
+                email_usuario
+              );
+              return;
+            }
+
+            // 🔓 Insere no banco (libera curso)
+            db.query(
+              "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)",
+              [email_usuario, ID_CURSO, codigo],
+              (err, result) => {
+                if (err) {
+                  console.error("❌ Erro ao liberar curso:", err);
+                  console.error("Detalhes do erro:", {
+                    code: err.code,
+                    errno: err.errno,
+                    sqlMessage: err.sqlMessage,
+                    sql: err.sql,
+                  });
+                } else {
+                  console.log("✅🎉 CURSO LIBERADO COM SUCESSO!", {
+                    email_usuario,
+                    ID_CURSO,
+                    codigo,
+                    insertId: result.insertId,
+                    paymentId,
+                    timestamp: new Date().toISOString(),
+                  });
+                }
+              }
+            );
+          }
+        );
+      } else {
+        console.log("ℹ️ Pagamento com status:", status);
+      }
+    }
+
+    // 🔥 MUITO IMPORTANTE: sempre responder 200 pro Mercado Pago
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error("Erro no webhook:", error);
+    return res.sendStatus(500);
   }
 });
 
