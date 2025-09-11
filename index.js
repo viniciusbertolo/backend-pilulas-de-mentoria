@@ -811,10 +811,12 @@ app.use(bodyParser.json());
 
 
 
-const mp = new mercadopago.SDK(process.env.MP_ACCESS_TOKEN);
+// ------------------- Mercado Pago ------------------- //
+mercadopago.configure({
+  access_token: process.env.MP_ACCESS_TOKEN,
+});
 
-
-// ---- Criar sessão de pagamento ----
+// ------------------- Criar checkout ------------------- //
 app.post("/api/payments/create-checkout", async (req, res) => {
   try {
     const { email_usuario, ID_CURSO, codigo, valor } = req.body;
@@ -823,7 +825,7 @@ app.post("/api/payments/create-checkout", async (req, res) => {
       items: [
         {
           title: "Curso " + ID_CURSO,
-          unit_price: valor / 100, // Mercado Pago usa reais, não centavos
+          unit_price: valor / 100,
           quantity: 1,
         },
       ],
@@ -835,22 +837,21 @@ app.post("/api/payments/create-checkout", async (req, res) => {
       auto_return: "approved",
       metadata: { email_usuario, ID_CURSO, codigo, valor },
       payment_methods: {
-        excluded_payment_types: [], // aceita tudo
+        excluded_payment_types: [],
         default_payment_method_id: "pix",
       },
     };
 
-    const response = await mp.preferences.create(preference);
+    const response = await mercadopago.preferences.create(preference);
 
     res.json({ id: response.body.id, url: response.body.init_point });
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao criar checkout:", error);
     res.status(500).send("Erro ao criar checkout");
   }
 });
 
-
-// ---- Webhook Mercado Pago ----
+// ------------------- Webhook ------------------- //
 app.post("/api/payments/webhook", async (req, res) => {
   try {
     const data = req.body;
@@ -859,7 +860,7 @@ app.post("/api/payments/webhook", async (req, res) => {
       const paymentId = data.data.id;
 
       // Buscar detalhes do pagamento
-      const payment = await mp.payment.findById(paymentId);
+      const payment = await mercadopago.payment.findById(paymentId);
 
       const status = payment.body.status;
       const metadata = payment.body.metadata;
@@ -874,10 +875,7 @@ app.post("/api/payments/webhook", async (req, res) => {
           "SELECT * FROM usuario_curso WHERE email_usuario = ? AND ID_CURSO = ?",
           [email_usuario, ID_CURSO],
           (err, results) => {
-            if (err) {
-              console.error("❌ Erro ao verificar curso existente:", err);
-              return;
-            }
+            if (err) return console.error("❌ Erro ao verificar curso:", err);
 
             if (results && results.length > 0) {
               console.log(
@@ -892,24 +890,15 @@ app.post("/api/payments/webhook", async (req, res) => {
               "INSERT INTO usuario_curso (email_usuario, ID_CURSO, codigo) VALUES (?, ?, ?)",
               [email_usuario, ID_CURSO, codigo],
               (err, result) => {
-                if (err) {
-                  console.error("❌ Erro ao liberar curso:", err);
-                  console.error("Detalhes do erro:", {
-                    code: err.code,
-                    errno: err.errno,
-                    sqlMessage: err.sqlMessage,
-                    sql: err.sql,
-                  });
-                } else {
-                  console.log("✅🎉 CURSO LIBERADO COM SUCESSO!", {
-                    email_usuario,
-                    ID_CURSO,
-                    codigo,
-                    insertId: result.insertId,
-                    paymentId,
-                    timestamp: new Date().toISOString(),
-                  });
-                }
+                if (err) return console.error("❌ Erro ao liberar curso:", err);
+                console.log("✅ CURSO LIBERADO COM SUCESSO!", {
+                  email_usuario,
+                  ID_CURSO,
+                  codigo,
+                  insertId: result.insertId,
+                  paymentId,
+                  timestamp: new Date().toISOString(),
+                });
               }
             );
           }
@@ -919,15 +908,12 @@ app.post("/api/payments/webhook", async (req, res) => {
       }
     }
 
-    // Sempre responder 200 pro Mercado Pago
-    return res.sendStatus(200);
+    return res.sendStatus(200); // Sempre responder 200 pro Mercado Pago
   } catch (error) {
     console.error("Erro no webhook:", error);
     return res.sendStatus(500);
   }
 });
-
-
 
 
 
