@@ -892,6 +892,22 @@ Que tal tentarmos [...] (estratégia)?"`
 
 app.use(bodyParser.json());
 
+app.get("/api/history/:email", (req, res) => {
+  const email = req.params.email;
+  db.query(
+    "SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at",
+    [email],
+    (err, result) => {
+      if (err) {
+        console.error(err);
+        res.status(500).send(err);
+      } else {
+        res.send(result);
+      }
+    }
+  );
+});
+
 //chave api
 // const stripe = new Stripe(process.env.STRIPE_API_KEY);
 
