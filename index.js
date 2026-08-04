@@ -65,7 +65,7 @@ const saltRounds = 10;
 //         sig,
 //         webhookSecret
 //       );
-      
+
 //       console.log('✅ Evento validado:', event.type);
 //     } catch (err) {
 //       console.error('❌ Erro na validação do webhook:', err.message);
@@ -82,7 +82,7 @@ const saltRounds = 10;
 //     // Processa quando o pagamento foi concluído
 //     if (event.type === 'checkout.session.completed') {
 //       const session = event.data.object;
-      
+
 //       console.log('Sessão completada:', {
 //         sessionId: session.id,
 //         paymentStatus: session.payment_status,
@@ -622,109 +622,235 @@ app.post("/liberar-curso/:email_usuario/:ID_CURSO/:codigo", (req, res) => {
 
 
 
+// app.post('/api/chat', async (req, res) => {
+//   const { email, prompt } = req.body;
+
+//   try {
+//     // 1. Busca o nome do usuário pelo email (mantido igual)
+//     let userName = email;
+//     try {
+//       const userResult = await new Promise((resolve, reject) => {
+//         db.query(
+//           'SELECT nome FROM usuarios WHERE email = ?',
+//           [email],
+//           (error, results, fields) => {
+//             if (error) reject(error);
+//             else resolve(results);
+//           }
+//         );
+//       });
+
+//       if (userResult && Array.isArray(userResult) && userResult.length > 0 && userResult[0].nome) {
+//         userName = userResult[0].nome;
+//       }
+//     } catch (userError) {
+//       console.error("Erro ao buscar nome do usuário:", userError);
+//     }
+
+//     // 2. Salva a pergunta do usuário no MySQL
+//     await db.query(
+//       'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
+//       [email, 'user', prompt]
+//     );
+
+//     // 3. Busca o histórico - Versão corrigida para MySQL
+//     let historyRows = [];
+//     try {
+//       const [rows] = await db.promise().query(
+//         'SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at ASC LIMIT 20',
+//         [email]
+//       );
+//       historyRows = rows || []; // Garante que seja um array
+//     } catch (dbError) {
+//       console.error("Erro ao buscar histórico:", dbError);
+//       historyRows = [];
+//     }
+
+//     const nome = userName.split(' ')[0].toLowerCase().replace(/^\w/, c => c.toUpperCase());
+
+//     // 4. Prepara as mensagens para o Gemini
+//     const systemInstruction = {
+//       role: "user", // No Gemini, colocamos a instrução do sistema como se fosse uma mensagem do usuário
+//       parts: [{
+//         text: `Você é uma inteligência artificial especialista em comportamento humano, com foco profundo no entendimento e manejo do medo.
+//         Chame o usuário pelo nome dele, que é: ${nome}
+//         Suas respostas devem seguir rigorosamente estas regras: (separados em sessões com titulos para deixar claro para o usuário as etapas)
+//         1. Identificar e classificar o tipo de medo (ex: Aracnofobia, Glossofobia)
+//         2. Acolher emocionalmente o relato
+//         3. Explicar como o medo atua no cérebro e corpo
+//         4. Sugerir estratégias práticas
+//         5. Manter abordagem empática e não julgadora
+//         6. Responder APENAS sobre medos e comportamento humano
+
+//         Exemplo de resposta:
+//         "Entendo seu medo, ${nome}. Isso parece ser [...] (classificação). 
+//         Esse tipo de medo ativa [...] no cérebro. Vamos trabalhar juntos nisso.
+//         Que tal tentarmos [...] (estratégia)?"`
+//       }]
+//     };
+
+//     const examples = {
+//       role: "model",
+//       parts: [{
+//         text: "Pode me contar qual medo você está sentindo agora? Estou aqui para ajudar."
+//       }]
+//     };
+
+//     // Formata o histórico
+//     const chatHistory = historyRows
+//       .filter(row => row && row.role && row.content)
+//       .map(row => ({
+//         role: row.role === 'assistant' ? 'model' : 'user',
+//         parts: [{ text: row.content }]
+//       }));
+
+
+
+
+//     // 5. Chama a API do Gemini com a estrutura correta
+//     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDGz0s8SUf2Vp_z9MUobkhlv5c71Dj78-s`, {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({
+//         contents: [
+//           systemInstruction,
+//           examples,
+//           ...chatHistory,
+//           { role: "user", parts: [{ text: prompt }] }
+//         ],
+//         generationConfig: {
+//           maxOutputTokens: 5000,
+//           temperature: 1.2
+//         },
+//         systemInstruction: {
+//           parts: [{
+//             text: "Você é um assistente especializado em psicologia e manejo de medos. Siga rigorosamente as instruções fornecidas na primeira mensagem do usuário."
+//           }]
+//         }
+//       })
+//     });
+
+//     if (!geminiResponse.ok) {
+//       const errorData = await geminiResponse.json();
+//       throw new Error(`Erro na API: ${JSON.stringify(errorData)}`);
+//     }
+
+//     const responseData = await geminiResponse.json();
+//     const aiReply = responseData.candidates[0].content.parts[0].text;
+
+//     // 6. Salva a resposta
+//     await db.query(
+//       'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
+//       [email, 'assistant', aiReply]
+//     );
+
+//     res.json({ reply: aiReply });
+
+//   } catch (error) {
+//     console.error("Erro no chat:", error);
+//     res.status(500).json({ error: error.message });
+//   }
+// });
+
+
+
+
+
+// app.get("/api/history/:email", (req, res) => {
+//   const email = req.params.email;
+//   db.query(
+//     "SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at",
+//     [email],
+//     (err, result) => {
+//       if (err) console.log(err);
+//       else res.send(result);
+//     }
+//   );
+// });
+
+
+//NOVO 20226
 app.post('/api/chat', async (req, res) => {
   const { email, prompt } = req.body;
 
   try {
-    // 1. Busca o nome do usuário pelo email (mantido igual)
+    // 1. Busca o nome do usuário pelo email
     let userName = email;
     try {
-      const userResult = await new Promise((resolve, reject) => {
-        db.query(
-          'SELECT nome FROM usuarios WHERE email = ?',
-          [email],
-          (error, results, fields) => {
-            if (error) reject(error);
-            else resolve(results);
-          }
-        );
-      });
-
-      if (userResult && Array.isArray(userResult) && userResult.length > 0 && userResult[0].nome) {
+      const [userResult] = await db.promise().query(
+        'SELECT nome FROM usuarios WHERE email = ?',
+        [email]
+      );
+      if (userResult && userResult.length > 0 && userResult[0].nome) {
         userName = userResult[0].nome;
       }
     } catch (userError) {
       console.error("Erro ao buscar nome do usuário:", userError);
     }
 
-    // 2. Salva a pergunta do usuário no MySQL
-    await db.query(
-      'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
-      [email, 'user', prompt]
-    );
-
-    // 3. Busca o histórico - Versão corrigida para MySQL
+    // 2. Busca o histórico ANTES de salvar a nova mensagem (evita duplicidade)
     let historyRows = [];
     try {
       const [rows] = await db.promise().query(
         'SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at ASC LIMIT 20',
         [email]
       );
-      historyRows = rows || []; // Garante que seja um array
+      historyRows = rows || [];
     } catch (dbError) {
       console.error("Erro ao buscar histórico:", dbError);
-      historyRows = [];
     }
 
+    // 3. Salva a nova pergunta do usuário no MySQL (usando .promise())
+    await db.promise().query(
+      'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
+      [email, 'user', prompt]
+    );
+
+    // Formata o nome para a instrução
     const nome = userName.split(' ')[0].toLowerCase().replace(/^\w/, c => c.toUpperCase());
 
-    // 4. Prepara as mensagens para o Gemini
-    const systemInstruction = {
-      role: "user", // No Gemini, colocamos a instrução do sistema como se fosse uma mensagem do usuário
-      parts: [{
-        text: `Você é uma inteligência artificial especialista em comportamento humano, com foco profundo no entendimento e manejo do medo.
-        Chame o usuário pelo nome dele, que é: ${nome}
-        Suas respostas devem seguir rigorosamente estas regras: (separados em sessões com titulos para deixar claro para o usuário as etapas)
-        1. Identificar e classificar o tipo de medo (ex: Aracnofobia, Glossofobia)
-        2. Acolher emocionalmente o relato
-        3. Explicar como o medo atua no cérebro e corpo
-        4. Sugerir estratégias práticas
-        5. Manter abordagem empática e não julgadora
-        6. Responder APENAS sobre medos e comportamento humano
-        
-        Exemplo de resposta:
-        "Entendo seu medo, ${nome}. Isso parece ser [...] (classificação). 
-        Esse tipo de medo ativa [...] no cérebro. Vamos trabalhar juntos nisso.
-        Que tal tentarmos [...] (estratégia)?"`
-      }]
-    };
-
-    const examples = {
-      role: "model",
-      parts: [{
-        text: "Pode me contar qual medo você está sentindo agora? Estou aqui para ajudar."
-      }]
-    };
-
-    // Formata o histórico
+    // 4. Formata o histórico para o formato do Gemini
     const chatHistory = historyRows
       .filter(row => row && row.role && row.content)
       .map(row => ({
+        // O banco salva como 'assistant', mas o Gemini exige 'model'
         role: row.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: row.content }]
       }));
 
+    // Adiciona a mensagem atual do usuário no final do histórico
+    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
-    
+    // 5. Chama a API do Gemini
+    // Lembre-se de colocar sua chave num arquivo .env!
+    const apiKey = process.env.GOOGLE_API_KEY;
 
-    // 5. Chama a API do Gemini com a estrutura correta
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDGz0s8SUf2Vp_z9MUobkhlv5c71Dj78-s`, {
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          systemInstruction,
-          examples,
-          ...chatHistory,
-          { role: "user", parts: [{ text: prompt }] }
-        ],
+        contents: chatHistory, // Passamos apenas o histórico real e a nova mensagem
         generationConfig: {
           maxOutputTokens: 5000,
-          temperature: 1.2
+          temperature: 1.0 // Reduzi um pouco de 1.2 para manter as respostas mais focadas, mas pode voltar se preferir
         },
+        // systemInstruction é o lugar correto para as regras do bot
         systemInstruction: {
           parts: [{
-            text: "Você é um assistente especializado em psicologia e manejo de medos. Siga rigorosamente as instruções fornecidas na primeira mensagem do usuário."
+            text: `Você é uma inteligência artificial especialista em comportamento humano, com foco profundo no entendimento e manejo do medo.
+Chame o usuário pelo nome dele, que é: ${nome}
+Suas respostas devem seguir rigorosamente estas regras: (separados em sessões com titulos para deixar claro para o usuário as etapas)
+1. Identificar e classificar o tipo de medo (ex: Aracnofobia, Glossofobia)
+2. Acolher emocionalmente o relato
+3. Explicar como o medo atua no cérebro e corpo
+4. Sugerir estratégias práticas
+5. Manter abordagem empática e não julgadora
+6. Responder APENAS sobre medos e comportamento humano
+
+Exemplo de resposta:
+"Entendo seu medo, ${nome}. Isso parece ser [...] (classificação). 
+Esse tipo de medo ativa [...] no cérebro. Vamos trabalhar juntos nisso.
+Que tal tentarmos [...] (estratégia)?"`
           }]
         }
       })
@@ -738,8 +864,8 @@ app.post('/api/chat', async (req, res) => {
     const responseData = await geminiResponse.json();
     const aiReply = responseData.candidates[0].content.parts[0].text;
 
-    // 6. Salva a resposta
-    await db.query(
+    // 6. Salva a resposta do assistente (usando .promise())
+    await db.promise().query(
       'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
       [email, 'assistant', aiReply]
     );
@@ -751,25 +877,6 @@ app.post('/api/chat', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-
-
-
-
-app.get("/api/history/:email", (req, res) => {
-  const email = req.params.email;
-  db.query(
-    "SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at",
-    [email],
-    (err, result) => {
-      if (err) console.log(err);
-      else res.send(result);
-    }
-  );
-});
-
-
-
 
 
 
@@ -847,7 +954,7 @@ app.post("/api/payments/create-checkout", async (req, res) => {
 
     // Cria uma instância do cliente de Preferências
     const preference = new Preference(client);
-    
+
     // Cria a preferência usando o cliente
     const response = await preference.create({ body: preferencePayload });
 
@@ -868,7 +975,7 @@ app.post("/api/payments/webhook", async (req, res) => {
 
       const paymentClient = new Payment(client);
       const payment = await paymentClient.get({ id: paymentId });
-      
+
       const status = payment.status;
       const metadata = payment.metadata;
 
@@ -877,7 +984,7 @@ app.post("/api/payments/webhook", async (req, res) => {
 
         // CORREÇÃO: Lendo 'id_curso' com 'i' minúsculo
         const { email_usuario, id_curso, codigo } = metadata;
-        
+
         // Verifica se os dados essenciais existem
         if (!email_usuario || !id_curso) {
           console.error("❌ Metadata incompleta. Não é possível liberar o curso.", metadata);
