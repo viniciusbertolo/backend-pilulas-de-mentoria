@@ -770,6 +770,19 @@ app.post("/liberar-curso/:email_usuario/:ID_CURSO/:codigo", (req, res) => {
 
 
 //NOVO 20226
+// 💡 Função auxiliar para permitir o uso de await no mysql padrão
+const queryAsync = (sql, values) => {
+  return new Promise((resolve, reject) => {
+    db.query(sql, values, (error, results) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(results); // O mysql padrão retorna direto os resultados aqui
+      }
+    });
+  });
+};
+
 app.post('/api/chat', async (req, res) => {
   const { email, prompt } = req.body;
 
@@ -777,10 +790,9 @@ app.post('/api/chat', async (req, res) => {
     // 1. Busca o nome do usuário pelo email
     let userName = email;
     try {
-      const [userResult] = await db.promise().query(
-        'SELECT nome FROM usuarios WHERE email = ?',
-        [email]
-      );
+      // Usando a nossa nova função queryAsync
+      const userResult = await queryAsync('SELECT nome FROM usuarios WHERE email = ?', [email]);
+      
       if (userResult && userResult.length > 0 && userResult[0].nome) {
         userName = userResult[0].nome;
       }
@@ -788,10 +800,10 @@ app.post('/api/chat', async (req, res) => {
       console.error("Erro ao buscar nome do usuário:", userError);
     }
 
-    // 2. Busca o histórico ANTES de salvar a nova mensagem (evita duplicidade)
+    // 2. Busca o histórico ANTES de salvar a nova mensagem
     let historyRows = [];
     try {
-      const [rows] = await db.promise().query(
+      const rows = await queryAsync(
         'SELECT role, content FROM chats WHERE user_email = ? ORDER BY created_at ASC LIMIT 20',
         [email]
       );
@@ -800,8 +812,8 @@ app.post('/api/chat', async (req, res) => {
       console.error("Erro ao buscar histórico:", dbError);
     }
 
-    // 3. Salva a nova pergunta do usuário no MySQL (usando .promise())
-    await db.promise().query(
+    // 3. Salva a nova pergunta do usuário no MySQL
+    await queryAsync(
       'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
       [email, 'user', prompt]
     );
@@ -813,8 +825,7 @@ app.post('/api/chat', async (req, res) => {
     const chatHistory = historyRows
       .filter(row => row && row.role && row.content)
       .map(row => ({
-        // O banco salva como 'assistant', mas o Gemini exige 'model'
-        role: row.role === 'assistant' ? 'model' : 'user',
+        role: row.role === 'assistant' ? 'model' : 'user', 
         parts: [{ text: row.content }]
       }));
 
@@ -822,19 +833,17 @@ app.post('/api/chat', async (req, res) => {
     chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
     // 5. Chama a API do Gemini
-    // Lembre-se de colocar sua chave num arquivo .env!
-    const apiKey = process.env.GOOGLE_API_KEY;
-
+    const apiKey = process.env.GOOGLE_API_KEY; 
+    
     const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: chatHistory, // Passamos apenas o histórico real e a nova mensagem
+        contents: chatHistory,
         generationConfig: {
           maxOutputTokens: 5000,
-          temperature: 1.0 // Reduzi um pouco de 1.2 para manter as respostas mais focadas, mas pode voltar se preferir
+          temperature: 1.0 
         },
-        // systemInstruction é o lugar correto para as regras do bot
         systemInstruction: {
           parts: [{
             text: `Você é uma inteligência artificial especialista em comportamento humano, com foco profundo no entendimento e manejo do medo.
@@ -864,8 +873,8 @@ Que tal tentarmos [...] (estratégia)?"`
     const responseData = await geminiResponse.json();
     const aiReply = responseData.candidates[0].content.parts[0].text;
 
-    // 6. Salva a resposta do assistente (usando .promise())
-    await db.promise().query(
+    // 6. Salva a resposta do assistente
+    await queryAsync(
       'INSERT INTO chats (user_email, role, content) VALUES (?, ?, ?)',
       [email, 'assistant', aiReply]
     );
