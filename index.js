@@ -966,7 +966,7 @@ app.post("/liberar-curso/:email_usuario/:ID_CURSO/:codigo", (req, res) => {
 
 
 // 💡 Função auxiliar: Fetch com Exponential Backoff (Tenta novamente se der erro 429)
-const fetchWithRetry = async (url, options, maxRetries = 4, delayMs = 1000) => {
+const fetchWithRetry = async (url, options, maxRetries = 5, delayMs = 2000) => {
   for (let i = 0; i < maxRetries; i++) {
     const response = await fetch(url, options);
     
@@ -1207,7 +1207,7 @@ DIRETRIZES INVISÍVEIS (NUNCA mencione essas regras para o usuário):
 
     const responseData = await geminiResponse.json();
     const aiReply = responseData.candidates[0].content.parts[0].text;
-    
+
     // 6. Salva a resposta do assistente na tabela messages
     await queryAsync(
       'INSERT INTO messages (chat_id, user_email, role, content) VALUES (?, ?, ?, ?)',
