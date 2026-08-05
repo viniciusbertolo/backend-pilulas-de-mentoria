@@ -1139,7 +1139,7 @@ app.post('/api/chat', async (req, res) => {
     const apiKey = process.env.GOOGLE_API_KEY; 
     
     // 🔥 USANDO A NOVA FUNÇÃO AQUI:
-    const geminiResponse = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`, {
+    const geminiResponse = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
