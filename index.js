@@ -833,9 +833,9 @@ app.post('/api/chat', async (req, res) => {
     chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
     // 5. Chama a API do Gemini
-    const apiKey = "AQ.Ab8RN6Lts0oddeseVOpz5BjaqyQjlUbUUV44OR8ufp1qa-bkwg"; 
+    const apiKey = process.env.GOOGLE_API_KEY; 
     
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
