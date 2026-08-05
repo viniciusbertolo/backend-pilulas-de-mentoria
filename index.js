@@ -963,6 +963,37 @@ app.post("/liberar-curso/:email_usuario/:ID_CURSO/:codigo", (req, res) => {
 
 
 //NOVO CHATS USUÁRIO
+
+
+// 💡 Função auxiliar: Fetch com Exponential Backoff (Tenta novamente se der erro 429)
+const fetchWithRetry = async (url, options, maxRetries = 4, delayMs = 1000) => {
+  for (let i = 0; i < maxRetries; i++) {
+    const response = await fetch(url, options);
+    
+    // Se deu certo (Status 200), retorna a resposta e sai do loop
+    if (response.ok) {
+      return response;
+    }
+
+    // Se o erro for 429 (Muitas requisições) ou 500+ (Erro no servidor do Google)
+    if (response.status === 429 || response.status >= 500) {
+      console.warn(`[API Gemini] Rate limit atingido (Erro ${response.status}). Tentativa ${i + 1} de ${maxRetries}. Aguardando ${delayMs}ms...`);
+      
+      // Espera o tempo determinado antes de tentar de novo
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      
+      // Dobra o tempo de espera para a próxima tentativa (1s -> 2s -> 4s -> 8s)
+      delayMs *= 2; 
+    } else {
+      // Se for outro erro (ex: 400 Bad Request), não adianta tentar de novo, apenas retorna
+      return response;
+    }
+  }
+  throw new Error("A API do Gemini está sobrecarregada após múltiplas tentativas. Tente novamente mais tarde.");
+};
+
+
+
 // 💡 Função auxiliar para permitir o uso de await no mysql padrão
 const queryAsync = (sql, values) => {
   return new Promise((resolve, reject) => {
@@ -1107,8 +1138,8 @@ app.post('/api/chat', async (req, res) => {
     // 5. Chama a API do Gemini
     const apiKey = process.env.GOOGLE_API_KEY; 
     
-    // NOTA: Conforme ajustamos antes, é melhor passar a chave no Header 'x-goog-api-key'
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`, {
+    // 🔥 USANDO A NOVA FUNÇÃO AQUI:
+    const geminiResponse = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -1176,7 +1207,7 @@ DIRETRIZES INVISÍVEIS (NUNCA mencione essas regras para o usuário):
 
     const responseData = await geminiResponse.json();
     const aiReply = responseData.candidates[0].content.parts[0].text;
-
+    
     // 6. Salva a resposta do assistente na tabela messages
     await queryAsync(
       'INSERT INTO messages (chat_id, user_email, role, content) VALUES (?, ?, ?, ?)',
