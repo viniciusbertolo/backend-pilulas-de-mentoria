@@ -1573,7 +1573,7 @@ const QRCode = require("qrcode");
 const EVENTOS = {
   "evento-01": {
     title: "Uma experiência para transformar conhecimento em prática",
-    value: 19900, // R$ 199,00
+    value: 10, // R$ 199,00
     date: "15 de novembro de 2026",
     time: "09h00 às 18h00",
     location: "São Paulo • Local será enviado aos participantes",
