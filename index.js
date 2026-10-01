@@ -24,6 +24,7 @@ import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
 import nodemailer from "nodemailer";
 import QRCode from "qrcode";
+import crypto from "node:crypto";
 
 dotenv.config();
 
@@ -1623,20 +1624,88 @@ function ticketCode(paymentId, eventId) {
 }
 
 // ------------------- Criar checkout do evento ------------------- //
+// app.post("/api/events/create-checkout", async (req, res) => {
+//   try {
+//     const { email, eventId } = req.body;
+//     const evento = EVENTOS[eventId];
+
+//     const normalizedEmail = String(email || "").trim().toLowerCase();
+
+//     if (!isValidEmail(normalizedEmail)) {
+//       return res.status(400).json({ message: "E-mail inválido." });
+//     }
+
+//     if (!evento) {
+//       return res.status(400).json({ message: "Evento inválido." });
+//     }
+
+//     const preferencePayload = {
+//       items: [
+//         {
+//           title: evento.title,
+//           unit_price: evento.value / 100,
+//           quantity: 1,
+//         },
+//       ],
+//       payer: {
+//         email: normalizedEmail,
+//       },
+//       external_reference: `EVENT:${eventId}`,
+//       back_urls: {
+//         success: `${FRONTEND_URL}/eventos/confirmacao`,
+//         failure: `${FRONTEND_URL}/eventos?checkout=failure`,
+//         pending: `${FRONTEND_URL}/eventos?checkout=pending`,
+//       },
+//       auto_return: "approved",
+//       notification_url: `${BACKEND_URL}/api/events/webhook`,
+//       metadata: {
+//         type: "EVENT_TICKET",
+//         event_id: eventId,
+//         email_usuario: normalizedEmail,
+//       },
+//       payment_methods: {
+//         excluded_payment_types: [],
+//         default_payment_method_id: "pix",
+//       },
+//     };
+
+//     const preference = new Preference(client);
+//     const response = await preference.create({ body: preferencePayload });
+
+//     return res.json({
+//       id: response.id,
+//       url: response.init_point,
+//     });
+//   } catch (error) {
+//     console.error("Erro ao criar checkout do evento:", error);
+//     return res.status(500).json({ message: "Erro ao criar checkout." });
+//   }
+// });
+
+
 app.post("/api/events/create-checkout", async (req, res) => {
   try {
     const { email, eventId } = req.body;
     const evento = EVENTOS[eventId];
 
-    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedEmail = String(email || "")
+      .trim()
+      .toLowerCase();
 
     if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ message: "E-mail inválido." });
+      return res.status(400).json({
+        message: "E-mail inválido.",
+      });
     }
 
     if (!evento) {
-      return res.status(400).json({ message: "Evento inválido." });
+      return res.status(400).json({
+        message: "Evento inválido.",
+      });
     }
+
+    const checkoutReference =
+      `EVENT:${eventId}:${crypto.randomUUID()}`;
 
     const preferencePayload = {
       items: [
@@ -1646,22 +1715,30 @@ app.post("/api/events/create-checkout", async (req, res) => {
           quantity: 1,
         },
       ],
+
       payer: {
         email: normalizedEmail,
       },
-      external_reference: `EVENT:${eventId}`,
+
+      external_reference: checkoutReference,
+
       back_urls: {
         success: `${FRONTEND_URL}/eventos/confirmacao`,
         failure: `${FRONTEND_URL}/eventos?checkout=failure`,
         pending: `${FRONTEND_URL}/eventos?checkout=pending`,
       },
+
       auto_return: "approved",
-      notification_url: `${BACKEND_URL}/api/events/webhook`,
+
+      notification_url:
+        `${BACKEND_URL}/api/events/webhook`,
+
       metadata: {
         type: "EVENT_TICKET",
         event_id: eventId,
         email_usuario: normalizedEmail,
       },
+
       payment_methods: {
         excluded_payment_types: [],
         default_payment_method_id: "pix",
@@ -1669,15 +1746,127 @@ app.post("/api/events/create-checkout", async (req, res) => {
     };
 
     const preference = new Preference(client);
-    const response = await preference.create({ body: preferencePayload });
+
+    const response = await preference.create({
+      body: preferencePayload,
+    });
 
     return res.json({
       id: response.id,
       url: response.init_point,
+      externalReference: checkoutReference,
     });
+
   } catch (error) {
-    console.error("Erro ao criar checkout do evento:", error);
-    return res.status(500).json({ message: "Erro ao criar checkout." });
+    console.error(
+      "Erro ao criar checkout do evento:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Erro ao criar checkout.",
+    });
+  }
+});
+
+
+
+// ------------------- Status do pagamento do evento ------------------- //
+
+app.get("/api/events/status/:reference", async (req, res) => {
+  try {
+    const reference = req.params.reference;
+
+    if (!reference) {
+      return res.status(400).json({
+        message: "Referência do checkout ausente.",
+      });
+    }
+
+    const url = new URL(
+      "https://api.mercadopago.com/v1/payments/search"
+    );
+
+    url.searchParams.set("sort", "date_created");
+    url.searchParams.set("criteria", "desc");
+    url.searchParams.set(
+      "external_reference",
+      reference
+    );
+    url.searchParams.set("range", "date_created");
+    url.searchParams.set(
+      "begin_date",
+      "NOW-1HOURS"
+    );
+    url.searchParams.set(
+      "end_date",
+      "NOW"
+    );
+
+    const mpResponse = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization:
+          `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!mpResponse.ok) {
+      const errorText = await mpResponse.text();
+
+      console.error(
+        "Erro ao consultar pagamentos no Mercado Pago:",
+        errorText
+      );
+
+      return res.status(500).json({
+        message:
+          "Erro ao consultar pagamento no Mercado Pago.",
+      });
+    }
+
+    const data = await mpResponse.json();
+
+    const payment = data.results?.find(
+      (item) =>
+        item.external_reference === reference &&
+        item.metadata?.type === "EVENT_TICKET"
+    );
+
+    // Ainda não existe pagamento associado
+    if (!payment) {
+      return res.json({
+        approved: false,
+        status: "pending",
+      });
+    }
+
+    // Pagamento aprovado
+    if (payment.status === "approved") {
+      return res.json({
+        approved: true,
+        status: payment.status,
+        paymentId: String(payment.id),
+      });
+    }
+
+    // Pagamento ainda aguardando
+    return res.json({
+      approved: false,
+      status: payment.status,
+      paymentId: String(payment.id),
+    });
+
+  } catch (error) {
+    console.error(
+      "Erro ao consultar status do evento:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Erro ao consultar status do pagamento.",
+    });
   }
 });
 
