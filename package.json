@@ -22,7 +22,9 @@
     "express-session": "^1.17.3",
     "mercadopago": "^2.9.0",
     "mysql": "^2.18.1",
+    "nodemailer": "^10.0.13",
     "nodemon": "^2.0.16",
+    "qrcode": "^1.5.4",
     "stripe": "^18.5.0"
   }
 }
