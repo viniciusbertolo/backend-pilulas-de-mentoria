@@ -1537,6 +1537,342 @@ app.post("/api/payments/webhook", async (req, res) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ================================================================
+// PAGAMENTOS DE EVENTOS - adicionar ao backend existente
+// Não altera os endpoints atuais de compra de curso.
+// Reaproveita o `client` do Mercado Pago que você já criou.
+// ================================================================
+
+const nodemailer = require("nodemailer");
+const QRCode = require("qrcode");
+
+// Configuração visual/comercial do evento.
+// O preço deve ser mantido no backend, e NÃO confiado ao frontend.
+const EVENTOS = {
+  "evento-01": {
+    title: "Uma experiência para transformar conhecimento em prática",
+    value: 19900, // R$ 199,00
+    date: "15 de novembro de 2026",
+    time: "09h00 às 18h00",
+    location: "São Paulo • Local será enviado aos participantes",
+  },
+};
+
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://pilulasdementoria.com.br";
+const BACKEND_URL = process.env.BACKEND_URL || "https://backend-pilulas-mentoria.herokuapp.com";
+
+// Dedupe somente em memória. Não grava nada em banco.
+// Observação: após restart/redeploy do servidor, o Set é perdido.
+const eventEmailsSent = new Set();
+
+const eventMailer = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: process.env.SMTP_SECURE === "true",
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+function isValidEmail(email) {
+  return /^\S+@\S+\.\S+$/.test(String(email || "").trim());
+}
+
+function ticketCode(paymentId, eventId) {
+  return `EVT-${eventId.toUpperCase()}-${paymentId}`;
+}
+
+// ------------------- Criar checkout do evento ------------------- //
+app.post("/api/events/create-checkout", async (req, res) => {
+  try {
+    const { email, eventId } = req.body;
+    const evento = EVENTOS[eventId];
+
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ message: "E-mail inválido." });
+    }
+
+    if (!evento) {
+      return res.status(400).json({ message: "Evento inválido." });
+    }
+
+    const preferencePayload = {
+      items: [
+        {
+          title: evento.title,
+          unit_price: evento.value / 100,
+          quantity: 1,
+        },
+      ],
+      payer: {
+        email: normalizedEmail,
+      },
+      external_reference: `EVENT:${eventId}`,
+      back_urls: {
+        success: `${FRONTEND_URL}/eventos/confirmacao`,
+        failure: `${FRONTEND_URL}/eventos?checkout=failure`,
+        pending: `${FRONTEND_URL}/eventos?checkout=pending`,
+      },
+      auto_return: "approved",
+      notification_url: `${BACKEND_URL}/api/events/webhook`,
+      metadata: {
+        type: "EVENT_TICKET",
+        event_id: eventId,
+        email_usuario: normalizedEmail,
+      },
+      payment_methods: {
+        excluded_payment_types: [],
+        default_payment_method_id: "pix",
+      },
+    };
+
+    const preference = new Preference(client);
+    const response = await preference.create({ body: preferencePayload });
+
+    return res.json({
+      id: response.id,
+      url: response.init_point,
+    });
+  } catch (error) {
+    console.error("Erro ao criar checkout do evento:", error);
+    return res.status(500).json({ message: "Erro ao criar checkout." });
+  }
+});
+
+// ------------------- Consultar pagamento do evento ------------------- //
+// A confirmação consulta o Mercado Pago em tempo real.
+// Não grava ingresso no banco.
+app.get("/api/events/payment/:paymentId", async (req, res) => {
+  try {
+    const paymentId = req.params.paymentId;
+
+    if (!paymentId) {
+      return res.status(400).json({ message: "Payment ID ausente." });
+    }
+
+    const paymentClient = new Payment(client);
+    const payment = await paymentClient.get({ id: paymentId });
+
+    const metadata = payment.metadata || {};
+
+    if (metadata.type !== "EVENT_TICKET") {
+      return res.status(403).json({ message: "Pagamento não pertence a um ingresso de evento." });
+    }
+
+    const evento = EVENTOS[metadata.event_id];
+
+    if (!evento) {
+      return res.status(404).json({ message: "Evento não encontrado." });
+    }
+
+    if (payment.status !== "approved") {
+      return res.json({
+        approved: false,
+        status: payment.status,
+      });
+    }
+
+    const code = ticketCode(payment.id, metadata.event_id);
+    const qrPayload = JSON.stringify({
+      type: "EVENT_TICKET",
+      eventId: metadata.event_id,
+      paymentId: String(payment.id),
+      ticketCode: code,
+    });
+
+    return res.json({
+      approved: true,
+      status: payment.status,
+      paymentId: String(payment.id),
+      email: metadata.email_usuario,
+      eventId: metadata.event_id,
+      eventName: evento.title,
+      date: evento.date,
+      time: evento.time,
+      location: evento.location,
+      ticketCode: code,
+      qrPayload,
+    });
+  } catch (error) {
+    console.error("Erro ao consultar pagamento do evento:", error);
+    return res.status(500).json({ message: "Erro ao consultar pagamento." });
+  }
+});
+
+// ------------------- Enviar ingresso por e-mail ------------------- //
+async function sendEventTicketEmail({ payment, evento, email, eventId }) {
+  const code = ticketCode(payment.id, eventId);
+  const qrPayload = JSON.stringify({
+    type: "EVENT_TICKET",
+    eventId,
+    paymentId: String(payment.id),
+    ticketCode: code,
+  });
+
+  const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+    width: 480,
+    margin: 2,
+    errorCorrectionLevel: "M",
+  });
+
+  const base64Qr = qrDataUrl.split(",")[1];
+
+  await eventMailer.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: `Ingresso confirmado — ${evento.title}`,
+    text: [
+      `Seu ingresso está confirmado!`,
+      `Evento: ${evento.title}`,
+      `Data: ${evento.date}`,
+      `Horário: ${evento.time}`,
+      `Local: ${evento.location}`,
+      `Código do ingresso: ${code}`,
+      `Pagamento: ${payment.id}`,
+    ].join("\n"),
+    html: `
+      <div style="margin:0;padding:40px 16px;background:#f4f5f7;font-family:Arial,sans-serif;color:#17191f;">
+        <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e6e7eb;">
+          <div style="padding:32px;background:#11141b;color:#fff;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#d9b8ff;">PÍLULAS DE MENTORIA</div>
+            <h1 style="margin:16px 0 0;font-size:32px;line-height:1.1;">Seu ingresso está confirmado.</h1>
+          </div>
+          <div style="padding:32px;">
+            <p style="font-size:15px;line-height:1.7;">Olá! Seu pagamento foi aprovado e seu ingresso está pronto.</p>
+            <div style="margin:24px 0;padding:20px;border-radius:16px;background:#f7f7f9;">
+              <div style="font-size:10px;letter-spacing:1px;color:#777;font-weight:700;">EVENTO</div>
+              <div style="margin-top:8px;font-size:20px;font-weight:700;">${evento.title}</div>
+              <div style="margin-top:16px;font-size:13px;line-height:1.8;">
+                <strong>Data:</strong> ${evento.date}<br/>
+                <strong>Horário:</strong> ${evento.time}<br/>
+                <strong>Local:</strong> ${evento.location}<br/>
+                <strong>Ingresso:</strong> ${code}
+              </div>
+            </div>
+            <div style="text-align:center;margin:28px 0;">
+              <img src="cid:event-ticket-qr" alt="QR Code do ingresso" style="width:280px;height:280px;display:inline-block;"/>
+              <div style="margin-top:10px;font-size:11px;color:#777;">Apresente este QR Code na entrada.</div>
+            </div>
+            <p style="font-size:12px;color:#777;line-height:1.6;">Pagamento Mercado Pago: ${payment.id}</p>
+          </div>
+        </div>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: "ingresso-qr-code.png",
+        content: base64Qr,
+        encoding: "base64",
+        cid: "event-ticket-qr",
+      },
+    ],
+  });
+}
+
+// ------------------- Webhook do evento ------------------- //
+app.post("/api/events/webhook", async (req, res) => {
+  try {
+    const data = req.body;
+
+    if (data.type !== "payment") {
+      return res.sendStatus(200);
+    }
+
+    const paymentId = data.data?.id;
+
+    if (!paymentId) {
+      return res.sendStatus(200);
+    }
+
+    const paymentClient = new Payment(client);
+    const payment = await paymentClient.get({ id: paymentId });
+    const metadata = payment.metadata || {};
+
+    if (metadata.type !== "EVENT_TICKET") {
+      return res.sendStatus(200);
+    }
+
+    if (payment.status !== "approved") {
+      console.log("Pagamento de evento ainda não aprovado:", payment.status);
+      return res.sendStatus(200);
+    }
+
+    if (!metadata.email_usuario || !metadata.event_id) {
+      console.error("Metadata do ingresso incompleta:", metadata);
+      return res.sendStatus(200);
+    }
+
+    const evento = EVENTOS[metadata.event_id];
+
+    if (!evento) {
+      console.error("Evento não encontrado:", metadata.event_id);
+      return res.sendStatus(200);
+    }
+
+    const dedupeKey = String(payment.id);
+
+    if (eventEmailsSent.has(dedupeKey)) {
+      console.log("E-mail do ingresso já enviado nesta execução:", payment.id);
+      return res.sendStatus(200);
+    }
+
+    await sendEventTicketEmail({
+      payment,
+      evento,
+      email: metadata.email_usuario,
+      eventId: metadata.event_id,
+    });
+
+    eventEmailsSent.add(dedupeKey);
+
+    console.log("✅ Ingresso enviado por e-mail:", {
+      paymentId: payment.id,
+      email: metadata.email_usuario,
+      eventId: metadata.event_id,
+    });
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error("Erro no webhook do evento:", error);
+    return res.sendStatus(500);
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
 app.listen(process.env.PORT || 3001, () => {
   console.log("rodando na porta 3001");
 });
