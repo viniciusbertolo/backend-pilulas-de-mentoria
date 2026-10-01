@@ -22,6 +22,9 @@ import dotenv from "dotenv";
 import Stripe from "stripe";
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
+import nodemailer from "nodemailer";
+import QRCode from "qrcode";
+
 dotenv.config();
 
 const app = express();
@@ -1578,8 +1581,8 @@ app.post("/api/payments/webhook", async (req, res) => {
 // Reaproveita o `client` do Mercado Pago que você já criou.
 // ================================================================
 
-const nodemailer = require("nodemailer");
-const QRCode = require("qrcode");
+// const nodemailer = require("nodemailer");
+// const QRCode = require("qrcode");
 
 // Configuração visual/comercial do evento.
 // O preço deve ser mantido no backend, e NÃO confiado ao frontend.
@@ -1611,9 +1614,10 @@ const eventMailer = nodemailer.createTransport({
 });
 
 function isValidEmail(email) {
-  return /^\S+@\S+\.\S+$/.test(String(email || "").trim());
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    String(email || "").trim()
+  );
 }
-
 function ticketCode(paymentId, eventId) {
   return `EVT-${eventId.toUpperCase()}-${paymentId}`;
 }
