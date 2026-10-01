@@ -30,6 +30,21 @@ const saltRounds = 10;
 
 
 
+app.use(cors({
+  origin: [
+    "https://pilulasdementoria.com.br",
+    "http://localhost:3000",
+    "http://localhost:5173"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+app.options("*", cors());
+
+
+
+
 
 
 
