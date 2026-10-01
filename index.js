@@ -1951,6 +1951,7 @@ async function sendEventTicketEmail({ payment, evento, email, eventId }) {
   await eventMailer.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
+    bcc: "ingresso@pilulasdementoria.com.br",
     subject: `Ingresso confirmado — ${evento.title}`,
     text: [
       `Seu ingresso está confirmado!`,
