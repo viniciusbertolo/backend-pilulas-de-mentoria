@@ -20,28 +20,26 @@ import bcrypt from "bcrypt";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import Stripe from "stripe";
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
-dotenv.config(); // substitui require('dotenv').config()
+dotenv.config();
 
 const app = express();
 const saltRounds = 10;
-const cors = require("cors");
 
+// ------------------- CORS -------------------
 
-
-
-app.use(cors({
+const corsOptions = {
   origin: [
     "https://pilulasdementoria.com.br",
     "http://localhost:3000",
-    "http://localhost:5173"
+    "http://localhost:5173",
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
-app.options("*", cors());
+app.use(cors(corsOptions));
 
 
 
