@@ -26,6 +26,7 @@ dotenv.config(); // substitui require('dotenv').config()
 
 const app = express();
 const saltRounds = 10;
+const cors = require("cors");
 
 
 
