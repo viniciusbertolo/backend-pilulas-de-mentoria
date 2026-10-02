@@ -1589,11 +1589,11 @@ app.post("/api/payments/webhook", async (req, res) => {
 // O preço deve ser mantido no backend, e NÃO confiado ao frontend.
 const EVENTOS = {
   "evento-01": {
-    title: "Uma experiência para transformar conhecimento em prática",
+    title: "Imersão NDX + PNL: A Neurociência por trás das estratégias de sucesso!",
     value: 10, // R$ 199,00
-    date: "15 de novembro de 2026",
-    time: "09h00 às 18h00",
-    location: "São Paulo • Local será enviado aos participantes",
+    date: "22, 23 e 24 de Outubro de 2026",
+    time: "Dia 22 e 23 (Quinta e Sexta): Das 18:30 às 22:30 • Dia 24 (Sábado): Das 8:30 às 17:30",
+    location: "São Carlos • Auditório Cardinali Imóveis • Avenida Trabalhador São Carlense, 2001 - Parque Arnold Schimidt",
   },
 };
 
