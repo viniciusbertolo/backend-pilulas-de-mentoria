@@ -1590,7 +1590,7 @@ app.post("/api/payments/webhook", async (req, res) => {
 const EVENTOS = {
   "evento-01": {
     title: "Imersão NDX + PNL: A Neurociência por trás das estratégias de sucesso!",
-    value: 10, // R$ 199,00
+    value: 36300, // R$ 199,00
     date: "22, 23 e 24 de Outubro de 2026",
     time: "Dia 22 e 23 (Quinta e Sexta): Das 18:30 às 22:30 • Dia 24 (Sábado): Das 8:30 às 17:30",
     location: "São Carlos • Auditório Cardinali Imóveis • Avenida Trabalhador São Carlense, 2001 - Parque Arnold Schimidt",
